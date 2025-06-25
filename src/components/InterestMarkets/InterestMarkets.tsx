@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import styled from 'styled-components';
-import { upbitApi, type UpbitTicker } from '../../services/upbit';
+import { upbitWebSocket, type UpbitTicker } from '../../services/upbitWebSocket';
 import { interestService, type InterestMarket } from '../../services/interestService';
 
 interface InterestData {
@@ -161,10 +161,16 @@ const Error = styled.div`
 
 const InterestMarkets: React.FC = () => {
   const [interestMarkets, setInterestMarkets] = useState<InterestMarket[]>([]);
-  const [tickers, setTickers] = useState<UpbitTicker[]>([]);
+  const [tickers, setTickers] = useState<Map<string, UpbitTicker>>(new Map());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'disconnected'>('disconnected');
+
+  // WebSocket 티커 업데이트 핸들러
+  const handleTickerUpdate = useCallback((ticker: UpbitTicker) => {
+    setTickers(prev => new Map(prev.set(ticker.market, ticker)));
+  }, []);
 
   const loadInterestMarkets = async () => {
     try {
@@ -172,11 +178,30 @@ const InterestMarkets: React.FC = () => {
       const allMarkets = await interestService.getInterestMarkets();
       setInterestMarkets(allMarkets);
 
-      // 현재가 조회
+      // WebSocket 연결 및 구독
       if (allMarkets.length > 0) {
-        const marketCodes = allMarkets.map(market => market.market).join(',');
-        const tickerData = await upbitApi.getTicker(marketCodes);
-        setTickers(tickerData);
+        upbitWebSocket.onTickerUpdate = handleTickerUpdate;
+        upbitWebSocket.onConnect = () => {
+          setConnectionStatus('connected');
+          console.log('관심 종목 WebSocket 연결됨');
+        };
+        upbitWebSocket.onDisconnect = () => {
+          setConnectionStatus('disconnected');
+          console.log('관심 종목 WebSocket 연결 끊김');
+        };
+        upbitWebSocket.onError = () => {
+          setConnectionStatus('disconnected');
+          console.log('관심 종목 WebSocket 오류');
+        };
+        
+        setConnectionStatus('connecting');
+        upbitWebSocket.connect();
+        
+        // 관심 종목 마켓 구독
+        const marketCodes = allMarkets.map(market => market.market);
+        setTimeout(() => {
+          upbitWebSocket.subscribeToMarkets(marketCodes);
+        }, 1000); // 연결 후 1초 뒤 구독
       }
     } catch (err) {
       setError('데이터를 불러오는 중 오류가 발생했습니다.');
@@ -193,16 +218,21 @@ const InterestMarkets: React.FC = () => {
 
     fetchData();
 
-    // 10초마다 데이터 갱신
-    const interval = setInterval(loadInterestMarkets, 10000);
-    return () => clearInterval(interval);
-  }, []);
+    // 컴포넌트 언마운트 시 WebSocket 연결 해제
+    return () => {
+      upbitWebSocket.disconnect();
+    };
+  }, [handleTickerUpdate]);
 
   const handleRemoveInterest = async (marketCode: string) => {
     try {
       const success = await interestService.removeInterestMarket(marketCode);
       if (success) {
         setInterestMarkets(prev => prev.filter(m => m.market !== marketCode));
+        
+        // WebSocket에서 구독 해제
+        upbitWebSocket.unsubscribeFromMarkets([marketCode]);
+        
         console.log(`${marketCode} 관심 종목에서 삭제됨`);
       }
     } catch (error) {
@@ -251,7 +281,7 @@ const InterestMarkets: React.FC = () => {
   };
 
   const getTickerByMarket = (marketCode: string) => {
-    return tickers.find(ticker => ticker.market === marketCode);
+    return tickers.get(marketCode);
   };
 
   const formatPrice = (price: number) => {
@@ -278,6 +308,15 @@ const InterestMarkets: React.FC = () => {
   return (
     <InterestContainer>
       <h1>관심 종목</h1>
+      <div style={{ 
+        textAlign: 'center', 
+        marginBottom: '10px',
+        fontSize: '14px',
+        color: connectionStatus === 'connected' ? '#00c851' : '#ff4444'
+      }}>
+        {connectionStatus === 'connected' ? '🟢 실시간 연결됨' : 
+         connectionStatus === 'connecting' ? '🟡 연결 중...' : '🔴 연결 끊김'}
+      </div>
       <InterestGrid>
         {interestMarkets.map((market, index) => {
           const ticker = getTickerByMarket(market.market);
