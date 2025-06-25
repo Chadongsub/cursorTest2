@@ -1,160 +1,60 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import styled from 'styled-components';
+import {
+  Box,
+  Grid,
+  Card,
+  CardContent,
+  Typography,
+  Chip,
+  IconButton,
+  Paper,
+  LinearProgress,
+  Alert,
+  Skeleton,
+  Button,
+  Tooltip
+} from '@mui/material';
+import {
+  TrendingUp as TrendingUpIcon,
+  TrendingDown as TrendingDownIcon,
+  Remove as RemoveIcon,
+  Favorite as FavoriteIcon,
+  Refresh as RefreshIcon,
+  Wifi as WifiIcon,
+  WifiOff as WifiOffIcon,
+  WifiTethering as WifiTetheringIcon
+} from '@mui/icons-material';
+import { styled } from '@mui/material/styles';
 import { upbitApi, type UpbitMarket } from '../../services/upbit';
 import { upbitWebSocket, type UpbitTicker } from '../../services/upbitWebSocket';
 import { interestService, type InterestMarket } from '../../services/interestService';
 
-const MarketContainer = styled.div`
-  padding: 20px;
-  max-width: 1200px;
-  margin: 0 auto;
-`;
+const StyledCard = styled(Card)<{ change: string }>(({ theme, change }) => ({
+  height: '100%',
+  transition: 'all 0.3s ease',
+  borderLeft: `4px solid ${
+    change === 'RISE' ? theme.palette.success.main :
+    change === 'FALL' ? theme.palette.error.main :
+    theme.palette.grey[400]
+  }`,
+  '&:hover': {
+    transform: 'translateY(-4px)',
+    boxShadow: theme.shadows[8],
+  },
+}));
 
-const Header = styled.div`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
-  flex-wrap: wrap;
-  gap: 10px;
-`;
+const PriceTypography = styled(Typography)<{ change: string }>(({ theme, change }) => ({
+  color: change === 'RISE' ? theme.palette.success.main :
+         change === 'FALL' ? theme.palette.error.main :
+         theme.palette.text.primary,
+  fontWeight: 'bold',
+}));
 
-const Title = styled.h1`
-  margin: 0;
-  color: #333;
-`;
-
-const UpdateInfo = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 14px;
-  color: #666;
-`;
-
-const LastUpdate = styled.span`
-  background: #f5f5f5;
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-family: monospace;
-`;
-
-const ConnectionStatus = styled.div<{ status: string }>`
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 12px;
-  color: ${props => props.status === 'connected' ? '#00c851' : '#ff4444'};
-`;
-
-const MarketGrid = styled.div`
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 20px;
-  margin-top: 20px;
-`;
-
-const InterestButton = styled.button<{ isInterest: boolean }>`
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  background: ${props => props.isInterest ? '#ff6b6b' : '#3498db'};
-  color: white;
-  border: none;
-  padding: 6px 12px;
-  border-radius: 12px;
-  font-size: 12px;
-  font-weight: bold;
-  cursor: pointer;
-  transition: all 0.2s;
-
-  &:hover {
-    background: ${props => props.isInterest ? '#ff5252' : '#2980b9'};
-    transform: scale(1.05);
-  }
-`;
-
-const MarketCard = styled.div<{ change: string }>`
-  background: white;
-  border-radius: 8px;
-  padding: 20px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  border-left: 4px solid ${props => 
-    props.change === 'RISE' ? '#00c851' : 
-    props.change === 'FALL' ? '#ff4444' : '#666'
-  };
-  transition: transform 0.2s;
-  position: relative;
-
-  &:hover {
-    transform: translateY(-2px);
-  }
-`;
-
-const MarketName = styled.h3`
-  margin: 0 0 10px 0;
-  font-size: 18px;
-  color: #333;
-`;
-
-const MarketCode = styled.div`
-  color: #666;
-  font-size: 14px;
-  margin-bottom: 15px;
-`;
-
-const PriceInfo = styled.div`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 10px;
-`;
-
-const CurrentPrice = styled.div<{ change: string }>`
-  font-size: 24px;
-  font-weight: bold;
-  color: ${props => 
-    props.change === 'RISE' ? '#00c851' : 
-    props.change === 'FALL' ? '#ff4444' : '#333'
-  };
-`;
-
-const ChangeInfo = styled.div<{ change: string }>`
-  text-align: right;
-  color: ${props => 
-    props.change === 'RISE' ? '#00c851' : 
-    props.change === 'FALL' ? '#ff4444' : '#666'
-  };
-`;
-
-const ChangeRate = styled.div`
-  font-size: 16px;
-  font-weight: bold;
-`;
-
-const ChangePrice = styled.div`
-  font-size: 14px;
-`;
-
-const VolumeInfo = styled.div`
-  font-size: 12px;
-  color: #666;
-  margin-top: 10px;
-`;
-
-const Loading = styled.div`
-  text-align: center;
-  padding: 40px;
-  font-size: 18px;
-  color: #666;
-`;
-
-const Error = styled.div`
-  text-align: center;
-  padding: 40px;
-  font-size: 18px;
-  color: #ff4444;
-`;
+const ChangeTypography = styled(Typography)<{ change: string }>(({ theme, change }) => ({
+  color: change === 'RISE' ? theme.palette.success.main :
+         change === 'FALL' ? theme.palette.error.main :
+         theme.palette.text.secondary,
+}));
 
 const UpbitMarketComponent: React.FC = () => {
   const [markets, setMarkets] = useState<UpbitMarket[]>([]);
@@ -281,70 +181,163 @@ const UpbitMarketComponent: React.FC = () => {
     });
   };
 
+  const getConnectionIcon = () => {
+    switch (connectionStatus) {
+      case 'connected':
+        return <WifiIcon color="success" />;
+      case 'connecting':
+        return <WifiTetheringIcon color="warning" />;
+      case 'disconnected':
+        return <WifiOffIcon color="error" />;
+      default:
+        return <WifiOffIcon color="error" />;
+    }
+  };
+
+  const getConnectionText = () => {
+    switch (connectionStatus) {
+      case 'connected':
+        return '실시간 연결됨';
+      case 'connecting':
+        return '연결 중...';
+      case 'disconnected':
+        return '연결 끊김';
+      default:
+        return '연결 끊김';
+    }
+  };
+
   if (loading) {
-    return <Loading>마켓 정보를 불러오는 중...</Loading>;
+    return (
+      <Box>
+        <Box sx={{ mb: 3 }}>
+          <Typography variant="h4" gutterBottom>
+            마켓 현황
+          </Typography>
+          <LinearProgress />
+        </Box>
+        <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 3 }}>
+          {[...Array(12)].map((_, index) => (
+            <Card key={index}>
+              <CardContent>
+                <Skeleton variant="text" width="60%" height={32} />
+                <Skeleton variant="text" width="40%" />
+                <Skeleton variant="text" width="80%" height={24} />
+                <Skeleton variant="text" width="60%" />
+              </CardContent>
+            </Card>
+          ))}
+        </Box>
+      </Box>
+    );
   }
 
   if (error) {
-    return <Error>{error}</Error>;
+    return (
+      <Alert severity="error" sx={{ mb: 2 }}>
+        {error}
+      </Alert>
+    );
   }
 
   return (
-    <MarketContainer>
-      <Header>
-        <Title>업비트 마켓 현황</Title>
-        <UpdateInfo>
-          <ConnectionStatus status={connectionStatus}>
-            {connectionStatus === 'connected' ? '🟢' : 
-             connectionStatus === 'connecting' ? '🟡' : '🔴'}
-            {connectionStatus === 'connected' ? '실시간' : 
-             connectionStatus === 'connecting' ? '연결중' : '연결끊김'}
-          </ConnectionStatus>
+    <Box>
+      {/* 헤더 */}
+      <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
+        <Box>
+          <Typography variant="h4" gutterBottom>
+            마켓 현황
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            실시간 업비트 마켓 정보
+          </Typography>
+        </Box>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          <Chip
+            icon={getConnectionIcon()}
+            label={getConnectionText()}
+            color={connectionStatus === 'connected' ? 'success' : connectionStatus === 'connecting' ? 'warning' : 'error'}
+            variant="outlined"
+          />
           {lastUpdate && (
-            <LastUpdate>
-              마지막 업데이트: {formatLastUpdate(lastUpdate)}
-            </LastUpdate>
+            <Chip
+              label={`마지막 업데이트: ${formatLastUpdate(lastUpdate)}`}
+              variant="outlined"
+              size="small"
+            />
           )}
-        </UpdateInfo>
-      </Header>
-      <MarketGrid>
+          <Tooltip title="새로고침">
+            <IconButton onClick={loadMarkets} color="primary">
+              <RefreshIcon />
+            </IconButton>
+          </Tooltip>
+        </Box>
+      </Box>
+
+      {/* 마켓 카드 그리드 */}
+      <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 3 }}>
         {markets.map((market) => {
           const ticker = getTickerByMarket(market.market);
           if (!ticker) return null;
 
           return (
-            <MarketCard key={market.market} change={ticker.change}>
-              <MarketName>{market.korean_name}</MarketName>
-              <MarketCode>{market.market}</MarketCode>
-              <PriceInfo>
-                <CurrentPrice change={ticker.change}>
-                  ₩{formatPrice(ticker.trade_price)}
-                </CurrentPrice>
-                <ChangeInfo change={ticker.change}>
-                  <ChangeRate>
-                    {ticker.change === 'RISE' ? '+' : ticker.change === 'FALL' ? '-' : ''}
-                    {(ticker.change_rate * 100).toFixed(2)}%
-                  </ChangeRate>
-                  <ChangePrice>
+            <StyledCard change={ticker.change} key={market.market}>
+              <CardContent>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
+                  <Box>
+                    <Typography variant="h6" component="div" gutterBottom>
+                      {market.korean_name}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      {market.market}
+                    </Typography>
+                  </Box>
+                  <Tooltip title="관심 종목에 추가">
+                    <IconButton
+                      size="small"
+                      onClick={() => handleAddInterest(market.market, market.korean_name)}
+                      sx={{ color: 'primary.main' }}
+                    >
+                      <FavoriteIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                </Box>
+
+                <Box sx={{ mb: 2 }}>
+                  <PriceTypography variant="h5" change={ticker.change}>
+                    ₩{formatPrice(ticker.trade_price)}
+                  </PriceTypography>
+                </Box>
+
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                    {ticker.change === 'RISE' ? (
+                      <TrendingUpIcon color="success" fontSize="small" />
+                    ) : ticker.change === 'FALL' ? (
+                      <TrendingDownIcon color="error" fontSize="small" />
+                    ) : (
+                      <RemoveIcon color="action" fontSize="small" />
+                    )}
+                    <ChangeTypography variant="body2" change={ticker.change}>
+                      {ticker.change === 'RISE' ? '+' : ticker.change === 'FALL' ? '-' : ''}
+                      {(ticker.change_rate * 100).toFixed(2)}%
+                    </ChangeTypography>
+                  </Box>
+                  <ChangeTypography variant="body2" change={ticker.change}>
                     {ticker.change === 'RISE' ? '+' : ticker.change === 'FALL' ? '-' : ''}
                     ₩{formatPrice(ticker.change_price)}
-                  </ChangePrice>
-                </ChangeInfo>
-              </PriceInfo>
-              <VolumeInfo>
-                거래량: {formatVolume(ticker.trade_volume)}
-              </VolumeInfo>
-              <InterestButton 
-                isInterest={false}
-                onClick={() => handleAddInterest(market.market, market.korean_name)}
-              >
-                관심 추가
-              </InterestButton>
-            </MarketCard>
+                  </ChangeTypography>
+                </Box>
+
+                <Typography variant="caption" color="text.secondary">
+                  거래량: {formatVolume(ticker.trade_volume)}
+                </Typography>
+              </CardContent>
+            </StyledCard>
           );
         })}
-      </MarketGrid>
-    </MarketContainer>
+      </Box>
+    </Box>
   );
 };
 
