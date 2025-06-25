@@ -1,0 +1,28 @@
+{
+  "interestMarkets": [
+    {
+      "market": "KRW-BTC",
+      "korean_name": "비트코인",
+      "english_name": "Bitcoin",
+      "added_date": "2024-01-01"
+    },
+    {
+      "market": "KRW-ETH",
+      "korean_name": "이더리움",
+      "english_name": "Ethereum",
+      "added_date": "2024-01-01"
+    },
+    {
+      "market": "KRW-DOGE",
+      "korean_name": "도지코인",
+      "english_name": "Dogecoin",
+      "added_date": "2024-01-01"
+    },
+    {
+      "market": "KRW-XRP",
+      "korean_name": "리플",
+      "english_name": "Ripple",
+      "added_date": "2024-01-01"
+    }
+  ]
+} 

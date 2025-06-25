@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { upbitApi, type UpbitMarket, UpbitTicker } from '../../services/upbit';
+import { interestService, type InterestMarket } from '../../services/interestService';
 
 const MarketContainer = styled.div`
   padding: 20px;
@@ -15,6 +16,26 @@ const MarketGrid = styled.div`
   margin-top: 20px;
 `;
 
+const InterestButton = styled.button<{ isInterest: boolean }>`
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: ${props => props.isInterest ? '#ff6b6b' : '#3498db'};
+  color: white;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.2s;
+
+  &:hover {
+    background: ${props => props.isInterest ? '#ff5252' : '#2980b9'};
+    transform: scale(1.05);
+  }
+`;
+
 const MarketCard = styled.div<{ change: string }>`
   background: white;
   border-radius: 8px;
@@ -25,6 +46,7 @@ const MarketCard = styled.div<{ change: string }>`
     props.change === 'FALL' ? '#ff4444' : '#666'
   };
   transition: transform 0.2s;
+  position: relative;
 
   &:hover {
     transform: translateY(-2px);
@@ -99,6 +121,7 @@ const Error = styled.div`
 const UpbitMarketComponent: React.FC = () => {
   const [markets, setMarkets] = useState<UpbitMarket[]>([]);
   const [tickers, setTickers] = useState<UpbitTicker[]>([]);
+  const [interestMarkets, setInterestMarkets] = useState<InterestMarket[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -110,12 +133,26 @@ const UpbitMarketComponent: React.FC = () => {
         // 마켓 목록 조회
         const marketData = await upbitApi.getMarkets();
         const krwMarkets = marketData.filter(market => market.market.startsWith('KRW-'));
-        setMarkets(krwMarkets.slice(0, 20)); // 상위 20개만 표시
+        
+        // DOGE를 특별히 포함시키기 위한 로직
+        const dogeMarket = krwMarkets.find(market => market.market === 'KRW-DOGE');
+        let selectedMarkets = krwMarkets.slice(0, 20); // 상위 20개
+        
+        // DOGE가 상위 20개에 없으면 마지막 항목을 DOGE로 교체
+        if (dogeMarket && !selectedMarkets.find(market => market.market === 'KRW-DOGE')) {
+          selectedMarkets = [...selectedMarkets.slice(0, 19), dogeMarket];
+        }
+        
+        setMarkets(selectedMarkets);
 
         // 현재가 조회
-        const marketCodes = krwMarkets.slice(0, 20).map(market => market.market).join(',');
+        const marketCodes = selectedMarkets.map(market => market.market).join(',');
         const tickerData = await upbitApi.getTicker(marketCodes);
         setTickers(tickerData);
+
+        // 관심 종목 로드
+        const interestData = await interestService.getInterestMarkets();
+        setInterestMarkets(interestData);
 
       } catch (err) {
         setError('데이터를 불러오는 중 오류가 발생했습니다.');
@@ -134,6 +171,41 @@ const UpbitMarketComponent: React.FC = () => {
 
   const getTickerByMarket = (marketCode: string) => {
     return tickers.find(ticker => ticker.market === marketCode);
+  };
+
+  const isInterestMarket = (marketCode: string) => {
+    return interestMarkets.some(market => market.market === marketCode);
+  };
+
+  const handleInterestToggle = async (market: UpbitMarket) => {
+    try {
+      const isInterest = isInterestMarket(market.market);
+      
+      if (isInterest) {
+        // 관심 종목에서 삭제
+        const success = await interestService.removeInterestMarket(market.market);
+        if (success) {
+          setInterestMarkets(prev => prev.filter(m => m.market !== market.market));
+          console.log(`${market.korean_name} 관심 해제됨`);
+        }
+      } else {
+        // 관심 종목에 추가
+        const interestMarket: InterestMarket = {
+          market: market.market,
+          korean_name: market.korean_name,
+          english_name: market.english_name,
+          added_date: new Date().toISOString().split('T')[0]
+        };
+        
+        const success = await interestService.addInterestMarket(interestMarket);
+        if (success) {
+          setInterestMarkets(prev => [...prev, interestMarket]);
+          console.log(`${market.korean_name} 관심 추가됨`);
+        }
+      }
+    } catch (error) {
+      console.error('관심 종목 토글 실패:', error);
+    }
   };
 
   const formatPrice = (price: number) => {
@@ -165,8 +237,16 @@ const UpbitMarketComponent: React.FC = () => {
           const ticker = getTickerByMarket(market.market);
           if (!ticker) return null;
 
+          const isInterest = isInterestMarket(market.market);
+
           return (
             <MarketCard key={market.market} change={ticker.change}>
+              <InterestButton 
+                isInterest={isInterest}
+                onClick={() => handleInterestToggle(market)}
+              >
+                {isInterest ? '관심 해제' : '관심 추가'}
+              </InterestButton>
               <MarketName>{market.korean_name}</MarketName>
               <MarketCode>{market.market}</MarketCode>
               <PriceInfo>

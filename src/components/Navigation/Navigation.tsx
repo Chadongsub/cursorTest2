@@ -69,6 +69,11 @@ const Navigation: React.FC = () => {
           </NavLink>
         </NavItem>
         <NavItem>
+          <NavLink to="/interest" active={location.pathname === '/interest'}>
+            관심 종목
+          </NavLink>
+        </NavItem>
+        <NavItem>
           <NavLink to="/chart" active={location.pathname === '/chart'}>
             차트
           </NavLink>

@@ -5,6 +5,7 @@ import { theme } from './styles/theme';
 import { GlobalStyle } from './styles/GlobalStyle';
 import { Layout } from './components/Layout/Layout';
 import UpbitMarketComponent from './components/UpbitMarket/UpbitMarketComponent';
+import InterestMarkets from './components/InterestMarkets/InterestMarkets';
 import UpbitChart from './components/UpbitChart/UpbitChart';
 
 function App() {
@@ -15,6 +16,7 @@ function App() {
         <Layout>
           <Routes>
             <Route path="/" element={<UpbitMarketComponent />} />
+            <Route path="/interest" element={<InterestMarkets />} />
             <Route path="/chart" element={<UpbitChart />} />
           </Routes>
         </Layout>
