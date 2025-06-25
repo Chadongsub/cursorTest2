@@ -267,13 +267,24 @@ const InterestMarkets: React.FC = () => {
 
         // WebSocket 연결 및 구독
         setConnectionStatus('connecting');
+        
+        // 기존 연결이 있으면 해제
+        if (upbitWebSocket.isConnected()) {
+          upbitWebSocket.disconnect();
+        }
+        
         upbitWebSocket.connect();
         
         // 관심 종목 마켓 구독
         const marketCodesArray = allMarkets.map(market => market.market);
         setTimeout(() => {
+          console.log('관심 종목 구독 시도:', marketCodesArray);
           upbitWebSocket.subscribeToMarkets(marketCodesArray);
         }, 2000); // 연결 후 2초 뒤 구독
+      } else {
+        // 관심 종목이 없으면 연결 상태만 설정
+        setConnectionStatus('disconnected');
+        setLastUpdate(new Date());
       }
     } catch (err) {
       setError('데이터를 불러오는 중 오류가 발생했습니다.');

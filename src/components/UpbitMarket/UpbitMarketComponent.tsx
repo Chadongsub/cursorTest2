@@ -159,7 +159,6 @@ const Error = styled.div`
 const UpbitMarketComponent: React.FC = () => {
   const [markets, setMarkets] = useState<UpbitMarket[]>([]);
   const [tickers, setTickers] = useState<Map<string, UpbitTicker>>(new Map());
-  const [interestMarkets, setInterestMarkets] = useState<InterestMarket[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'disconnected'>('disconnected');
@@ -210,10 +209,12 @@ const UpbitMarketComponent: React.FC = () => {
     try {
       // 마켓 목록 로드
       const marketList = await upbitApi.getMarkets();
-      setMarkets(marketList);
+      const krwMarkets = marketList.filter(market => market.market.startsWith('KRW-'));
+      setMarkets(krwMarkets);
 
       // 초기 티커 데이터 로드
-      const initialTickers = await upbitApi.getTicker('KRW-BTC,KRW-ETH,KRW-XRP,KRW-ADA,KRW-DOGE,KRW-MATIC,KRW-DOT,KRW-TRX,KRW-LINK,KRW-UNI,KRW-ATOM,KRW-LTC,KRW-ETC,KRW-XLM,KRW-BCH,KRW-VET,KRW-FIL,KRW-THETA,KRW-SOL,KRW-NEO');
+      const marketCodes = krwMarkets.map(market => market.market).join(',');
+      const initialTickers = await upbitApi.getTicker(marketCodes);
       
       // 초기 데이터를 Map으로 변환
       const tickerMap = new Map();
@@ -228,9 +229,8 @@ const UpbitMarketComponent: React.FC = () => {
       upbitWebSocket.connect();
       
       // 모든 마켓 구독
-      const marketCodes = marketList.map(market => market.market);
       setTimeout(() => {
-        upbitWebSocket.subscribeToMarkets(marketCodes);
+        upbitWebSocket.subscribeToMarkets(krwMarkets.map(market => market.market));
       }, 2000);
     } catch (err) {
       setError('데이터를 불러오는 중 오류가 발생했습니다.');
@@ -238,43 +238,26 @@ const UpbitMarketComponent: React.FC = () => {
     }
   };
 
-  const getTickerByMarket = (marketCode: string) => {
-    return tickers.get(marketCode);
-  };
-
-  const isInterestMarket = (marketCode: string) => {
-    return interestMarkets.some(market => market.market === marketCode);
-  };
-
-  const handleInterestToggle = async (market: UpbitMarket) => {
+  const handleAddInterest = async (marketCode: string, koreanName: string) => {
     try {
-      const isInterest = isInterestMarket(market.market);
+      const interestMarket: InterestMarket = {
+        market: marketCode,
+        korean_name: koreanName,
+        english_name: marketCode,
+        added_date: new Date().toISOString().split('T')[0]
+      };
       
-      if (isInterest) {
-        // 관심 종목에서 삭제
-        const success = await interestService.removeInterestMarket(market.market);
-        if (success) {
-          setInterestMarkets(prev => prev.filter(m => m.market !== market.market));
-          console.log(`${market.korean_name} 관심 해제됨`);
-        }
-      } else {
-        // 관심 종목에 추가
-        const interestMarket: InterestMarket = {
-          market: market.market,
-          korean_name: market.korean_name,
-          english_name: market.english_name,
-          added_date: new Date().toISOString().split('T')[0]
-        };
-        
-        const success = await interestService.addInterestMarket(interestMarket);
-        if (success) {
-          setInterestMarkets(prev => [...prev, interestMarket]);
-          console.log(`${market.korean_name} 관심 추가됨`);
-        }
+      const success = await interestService.addInterestMarket(interestMarket);
+      if (success) {
+        console.log(`${marketCode} 관심 종목에 추가됨`);
       }
     } catch (error) {
-      console.error('관심 종목 토글 실패:', error);
+      console.error('관심 종목 추가 실패:', error);
     }
+  };
+
+  const getTickerByMarket = (marketCode: string) => {
+    return tickers.get(marketCode);
   };
 
   const formatPrice = (price: number) => {
@@ -299,7 +282,7 @@ const UpbitMarketComponent: React.FC = () => {
   };
 
   if (loading) {
-    return <Loading>데이터를 불러오는 중...</Loading>;
+    return <Loading>마켓 정보를 불러오는 중...</Loading>;
   }
 
   if (error) {
@@ -325,20 +308,12 @@ const UpbitMarketComponent: React.FC = () => {
         </UpdateInfo>
       </Header>
       <MarketGrid>
-        {markets.map(market => {
+        {markets.map((market) => {
           const ticker = getTickerByMarket(market.market);
           if (!ticker) return null;
 
-          const isInterest = isInterestMarket(market.market);
-
           return (
             <MarketCard key={market.market} change={ticker.change}>
-              <InterestButton 
-                isInterest={isInterest}
-                onClick={() => handleInterestToggle(market)}
-              >
-                {isInterest ? '관심 해제' : '관심 추가'}
-              </InterestButton>
               <MarketName>{market.korean_name}</MarketName>
               <MarketCode>{market.market}</MarketCode>
               <PriceInfo>
@@ -359,6 +334,12 @@ const UpbitMarketComponent: React.FC = () => {
               <VolumeInfo>
                 거래량: {formatVolume(ticker.trade_volume)}
               </VolumeInfo>
+              <InterestButton 
+                isInterest={false}
+                onClick={() => handleAddInterest(market.market, market.korean_name)}
+              >
+                관심 추가
+              </InterestButton>
             </MarketCard>
           );
         })}

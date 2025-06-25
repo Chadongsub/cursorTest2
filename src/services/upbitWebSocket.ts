@@ -39,6 +39,7 @@ class UpbitWebSocketService {
   private isConnecting = false;
   private subscriptions = new Set<string>();
   private eventHandlers = new Map<string, Set<Function>>();
+  private connectionId = 0;
 
   // 이벤트 핸들러 등록
   private addEventHandler(event: string, handler: Function) {
@@ -73,46 +74,63 @@ class UpbitWebSocketService {
   // WebSocket 연결
   connect() {
     if (this.isConnecting || this.ws?.readyState === WebSocket.OPEN) {
+      console.log('WebSocket이 이미 연결 중이거나 연결됨');
       return;
     }
 
     this.isConnecting = true;
-    console.log('WebSocket 연결 시도 중...');
+    this.connectionId++;
+    console.log(`WebSocket 연결 시도 중... (ID: ${this.connectionId})`);
     
     try {
       this.ws = new WebSocket('wss://api.upbit.com/websocket/v1');
       
       this.ws.onopen = () => {
-        console.log('업비트 WebSocket 연결 성공!');
+        console.log(`업비트 WebSocket 연결 성공! (ID: ${this.connectionId})`);
         this.isConnecting = false;
         this.reconnectAttempts = 0;
         this.emitEvent('connect');
         
         // 이전 구독 복원
         if (this.subscriptions.size > 0) {
+          console.log('이전 구독 복원:', Array.from(this.subscriptions));
           this.subscribeToMarkets(Array.from(this.subscriptions));
         }
       };
 
       this.ws.onmessage = (event) => {
         try {
-          const data = JSON.parse(event.data);
-          console.log('WebSocket 메시지 수신:', data);
-          this.handleMessage(data);
+          // Blob 데이터인 경우 텍스트로 변환
+          if (event.data instanceof Blob) {
+            const reader = new FileReader();
+            reader.onload = () => {
+              try {
+                const data = JSON.parse(reader.result as string);
+                this.handleMessage(data);
+              } catch (error) {
+                console.error('WebSocket Blob 메시지 파싱 오류:', error);
+              }
+            };
+            reader.readAsText(event.data);
+          } else {
+            // 일반 텍스트 데이터인 경우
+            const data = JSON.parse(event.data);
+            this.handleMessage(data);
+          }
         } catch (error) {
           console.error('WebSocket 메시지 파싱 오류:', error);
         }
       };
 
       this.ws.onclose = (event) => {
-        console.log('업비트 WebSocket 연결 종료:', event.code, event.reason);
+        console.log(`업비트 WebSocket 연결 종료 (ID: ${this.connectionId}):`, event.code, event.reason);
         this.isConnecting = false;
         this.emitEvent('disconnect');
         this.handleReconnect();
       };
 
       this.ws.onerror = (error) => {
-        console.error('업비트 WebSocket 오류:', error);
+        console.error(`업비트 WebSocket 오류 (ID: ${this.connectionId}):`, error);
         this.isConnecting = false;
         this.emitEvent('error', error);
       };
@@ -128,7 +146,7 @@ class UpbitWebSocketService {
   private handleReconnect() {
     if (this.reconnectAttempts < this.maxReconnectAttempts) {
       this.reconnectAttempts++;
-      console.log(`WebSocket 재연결 시도 ${this.reconnectAttempts}/${this.maxReconnectAttempts}`);
+      console.log(`WebSocket 재연결 시도 ${this.reconnectAttempts}/${this.maxReconnectAttempts} (ID: ${this.connectionId})`);
       
       setTimeout(() => {
         this.connect();
@@ -150,7 +168,7 @@ class UpbitWebSocketService {
     // 업비트 WebSocket API 정확한 형식 (배열로 전송)
     const subscribeMessage = [
       {
-        ticket: 'UNIQUE_TICKET'
+        ticket: `TICKET_${this.connectionId}`
       },
       {
         type: 'ticker',
@@ -193,9 +211,14 @@ class UpbitWebSocketService {
   // 메시지 처리
   private handleMessage(data: any) {
     if (data.type === 'ticker') {
-      console.log('티커 데이터 수신:', data.market, data.trade_price);
+      // code 필드를 market으로 매핑
+      const tickerData = {
+        ...data,
+        market: data.code // code를 market으로 변환
+      };
+      console.log('티커 데이터 수신:', tickerData.market, tickerData.trade_price);
       // 티커 데이터 이벤트 발생
-      this.emitEvent('tickerUpdate', data);
+      this.emitEvent('tickerUpdate', tickerData);
     } else if (data.type === 'orderbook') {
       console.log('호가 데이터 수신:', data);
     } else if (data.type === 'trade') {
@@ -208,13 +231,13 @@ class UpbitWebSocketService {
   // 연결 해제
   disconnect() {
     if (this.ws) {
+      console.log(`WebSocket 연결 해제 (ID: ${this.connectionId})`);
       this.ws.close();
       this.ws = null;
     }
     this.subscriptions.clear();
     this.reconnectAttempts = 0;
     this.isConnecting = false;
-    console.log('WebSocket 연결 해제됨');
   }
 
   // 연결 상태 확인
