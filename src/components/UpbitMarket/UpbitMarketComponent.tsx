@@ -211,9 +211,6 @@ const UpbitMarketComponent: React.FC = () => {
     return (
       <Box>
         <Box sx={{ mb: 3 }}>
-          <Typography variant="h4" gutterBottom>
-            마켓 현황
-          </Typography>
           <LinearProgress />
         </Box>
         <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 3 }}>
@@ -245,9 +242,6 @@ const UpbitMarketComponent: React.FC = () => {
       {/* 헤더 */}
       <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
         <Box>
-          <Typography variant="h4" gutterBottom>
-            마켓 현황
-          </Typography>
           <Typography variant="body2" color="text.secondary">
             실시간 업비트 마켓 정보
           </Typography>
@@ -275,68 +269,70 @@ const UpbitMarketComponent: React.FC = () => {
       </Box>
 
       {/* 마켓 카드 그리드 */}
-      <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 3 }}>
+      <Grid container spacing={3}>
         {markets.map((market) => {
           const ticker = getTickerByMarket(market.market);
           if (!ticker) return null;
 
           return (
-            <StyledCard change={ticker.change} key={market.market}>
-              <CardContent>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
-                  <Box>
-                    <Typography variant="h6" component="div" gutterBottom>
-                      {market.korean_name}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      {market.market}
-                    </Typography>
+            <Grid item xs={12} sm={6} md={4} lg={3} key={market.market}>
+              <StyledCard change={ticker.change}>
+                <CardContent>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
+                    <Box>
+                      <Typography variant="h6" component="div" gutterBottom>
+                        {market.korean_name}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        {market.market}
+                      </Typography>
+                    </Box>
+                    <Tooltip title="관심 종목에 추가">
+                      <IconButton
+                        size="small"
+                        onClick={() => handleAddInterest(market.market, market.korean_name)}
+                        sx={{ color: 'primary.main' }}
+                      >
+                        <FavoriteIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
                   </Box>
-                  <Tooltip title="관심 종목에 추가">
-                    <IconButton
-                      size="small"
-                      onClick={() => handleAddInterest(market.market, market.korean_name)}
-                      sx={{ color: 'primary.main' }}
-                    >
-                      <FavoriteIcon fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
-                </Box>
 
-                <Box sx={{ mb: 2 }}>
-                  <PriceTypography variant="h5" change={ticker.change}>
-                    ₩{formatPrice(ticker.trade_price)}
-                  </PriceTypography>
-                </Box>
+                  <Box sx={{ mb: 2 }}>
+                    <PriceTypography variant="h5" change={ticker.change}>
+                      ₩{formatPrice(ticker.trade_price)}
+                    </PriceTypography>
+                  </Box>
 
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                    {ticker.change === 'RISE' ? (
-                      <TrendingUpIcon color="success" fontSize="small" />
-                    ) : ticker.change === 'FALL' ? (
-                      <TrendingDownIcon color="error" fontSize="small" />
-                    ) : (
-                      <RemoveIcon color="action" fontSize="small" />
-                    )}
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                      {ticker.change === 'RISE' ? (
+                        <TrendingUpIcon color="success" fontSize="small" />
+                      ) : ticker.change === 'FALL' ? (
+                        <TrendingDownIcon color="error" fontSize="small" />
+                      ) : (
+                        <RemoveIcon color="action" fontSize="small" />
+                      )}
+                      <ChangeTypography variant="body2" change={ticker.change}>
+                        {ticker.change === 'RISE' ? '+' : ticker.change === 'FALL' ? '-' : ''}
+                        {(ticker.change_rate * 100).toFixed(2)}%
+                      </ChangeTypography>
+                    </Box>
                     <ChangeTypography variant="body2" change={ticker.change}>
                       {ticker.change === 'RISE' ? '+' : ticker.change === 'FALL' ? '-' : ''}
-                      {(ticker.change_rate * 100).toFixed(2)}%
+                      ₩{formatPrice(ticker.change_price)}
                     </ChangeTypography>
                   </Box>
-                  <ChangeTypography variant="body2" change={ticker.change}>
-                    {ticker.change === 'RISE' ? '+' : ticker.change === 'FALL' ? '-' : ''}
-                    ₩{formatPrice(ticker.change_price)}
-                  </ChangeTypography>
-                </Box>
 
-                <Typography variant="caption" color="text.secondary">
-                  거래량: {formatVolume(ticker.trade_volume)}
-                </Typography>
-              </CardContent>
-            </StyledCard>
+                  <Typography variant="caption" color="text.secondary">
+                    거래량: {formatVolume(ticker.trade_volume)}
+                  </Typography>
+                </CardContent>
+              </StyledCard>
+            </Grid>
           );
         })}
-      </Box>
+      </Grid>
     </Box>
   );
 };

@@ -2,7 +2,6 @@ import React from 'react';
 import { Box, Toolbar, Container, Typography, Grid, Paper } from '@mui/material';
 import Sidebar from '../components/Sidebar';
 import Topbar from '../components/Topbar';
-import MarketWidget from '../components/widgets/MarketWidget';
 import UpbitMarketComponent from '../components/UpbitMarket/UpbitMarketComponent';
 
 export default function MarketPage() {
@@ -18,12 +17,8 @@ export default function MarketPage() {
           </Typography>
           <Grid container spacing={3}>
             {/* @ts-ignore */}
-            <Grid item xs={12} md={4} lg={3}>
-              <MarketWidget />
-            </Grid>
-            {/* @ts-ignore */}
-            <Grid item xs={12} md={8} lg={9}>
-              <Paper sx={{ p: 2, height: '600px' }}>
+            <Grid item xs={12}>
+              <Paper sx={{ p: 2 }}>
                 <UpbitMarketComponent />
               </Paper>
             </Grid>
