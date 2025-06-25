@@ -38,7 +38,37 @@ class UpbitWebSocketService {
   private reconnectInterval = 3000;
   private isConnecting = false;
   private subscriptions = new Set<string>();
-  private pingInterval: NodeJS.Timeout | null = null;
+  private eventHandlers = new Map<string, Set<Function>>();
+
+  // 이벤트 핸들러 등록
+  private addEventHandler(event: string, handler: Function) {
+    if (!this.eventHandlers.has(event)) {
+      this.eventHandlers.set(event, new Set());
+    }
+    this.eventHandlers.get(event)!.add(handler);
+  }
+
+  // 이벤트 핸들러 제거
+  private removeEventHandler(event: string, handler: Function) {
+    const handlers = this.eventHandlers.get(event);
+    if (handlers) {
+      handlers.delete(handler);
+    }
+  }
+
+  // 이벤트 발생
+  private emitEvent(event: string, data?: any) {
+    const handlers = this.eventHandlers.get(event);
+    if (handlers) {
+      handlers.forEach(handler => {
+        try {
+          handler(data);
+        } catch (error) {
+          console.error(`이벤트 핸들러 오류 (${event}):`, error);
+        }
+      });
+    }
+  }
 
   // WebSocket 연결
   connect() {
@@ -47,17 +77,16 @@ class UpbitWebSocketService {
     }
 
     this.isConnecting = true;
+    console.log('WebSocket 연결 시도 중...');
     
     try {
       this.ws = new WebSocket('wss://api.upbit.com/websocket/v1');
       
       this.ws.onopen = () => {
-        console.log('업비트 WebSocket 연결됨');
+        console.log('업비트 WebSocket 연결 성공!');
         this.isConnecting = false;
         this.reconnectAttempts = 0;
-        
-        // 핑 인터벌 시작
-        this.startPingInterval();
+        this.emitEvent('connect');
         
         // 이전 구독 복원
         if (this.subscriptions.size > 0) {
@@ -68,6 +97,7 @@ class UpbitWebSocketService {
       this.ws.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
+          console.log('WebSocket 메시지 수신:', data);
           this.handleMessage(data);
         } catch (error) {
           console.error('WebSocket 메시지 파싱 오류:', error);
@@ -77,37 +107,20 @@ class UpbitWebSocketService {
       this.ws.onclose = (event) => {
         console.log('업비트 WebSocket 연결 종료:', event.code, event.reason);
         this.isConnecting = false;
-        this.stopPingInterval();
+        this.emitEvent('disconnect');
         this.handleReconnect();
       };
 
       this.ws.onerror = (error) => {
         console.error('업비트 WebSocket 오류:', error);
         this.isConnecting = false;
+        this.emitEvent('error', error);
       };
 
     } catch (error) {
       console.error('WebSocket 연결 실패:', error);
       this.isConnecting = false;
       this.handleReconnect();
-    }
-  }
-
-  // 핑 인터벌 시작
-  private startPingInterval() {
-    this.stopPingInterval();
-    this.pingInterval = setInterval(() => {
-      if (this.ws?.readyState === WebSocket.OPEN) {
-        this.ws.send(JSON.stringify({ type: 'ping' }));
-      }
-    }, 30000); // 30초마다 핑
-  }
-
-  // 핑 인터벌 중지
-  private stopPingInterval() {
-    if (this.pingInterval) {
-      clearInterval(this.pingInterval);
-      this.pingInterval = null;
     }
   }
 
@@ -134,7 +147,7 @@ class UpbitWebSocketService {
       return;
     }
 
-    // 업비트 WebSocket API 형식에 맞게 수정
+    // 업비트 WebSocket API 정확한 형식 (배열로 전송)
     const subscribeMessage = [
       {
         ticket: 'UNIQUE_TICKET'
@@ -147,12 +160,13 @@ class UpbitWebSocketService {
     ];
 
     try {
+      console.log('구독 메시지 전송:', subscribeMessage);
       this.ws.send(JSON.stringify(subscribeMessage));
       
       // 구독 목록 업데이트
       markets.forEach(market => this.subscriptions.add(market));
       
-      console.log('마켓 구독:', markets);
+      console.log('마켓 구독 완료:', markets);
     } catch (error) {
       console.error('구독 메시지 전송 실패:', error);
     }
@@ -179,17 +193,20 @@ class UpbitWebSocketService {
   // 메시지 처리
   private handleMessage(data: any) {
     if (data.type === 'ticker') {
+      console.log('티커 데이터 수신:', data.market, data.trade_price);
       // 티커 데이터 이벤트 발생
-      this.onTickerUpdate?.(data);
-    } else if (data.type === 'pong') {
-      // 핑 응답 처리
-      console.log('WebSocket 핑 응답 받음');
+      this.emitEvent('tickerUpdate', data);
+    } else if (data.type === 'orderbook') {
+      console.log('호가 데이터 수신:', data);
+    } else if (data.type === 'trade') {
+      console.log('체결 데이터 수신:', data);
+    } else {
+      console.log('기타 메시지 수신:', data);
     }
   }
 
   // 연결 해제
   disconnect() {
-    this.stopPingInterval();
     if (this.ws) {
       this.ws.close();
       this.ws = null;
@@ -197,6 +214,7 @@ class UpbitWebSocketService {
     this.subscriptions.clear();
     this.reconnectAttempts = 0;
     this.isConnecting = false;
+    console.log('WebSocket 연결 해제됨');
   }
 
   // 연결 상태 확인
@@ -204,11 +222,72 @@ class UpbitWebSocketService {
     return this.ws?.readyState === WebSocket.OPEN;
   }
 
-  // 콜백 함수들
-  onTickerUpdate?: (ticker: UpbitTicker) => void;
-  onConnect?: () => void;
-  onDisconnect?: () => void;
-  onError?: (error: Event) => void;
+  // 연결 상태 상세 확인
+  getConnectionState(): string {
+    if (!this.ws) return 'disconnected';
+    switch (this.ws.readyState) {
+      case WebSocket.CONNECTING: return 'connecting';
+      case WebSocket.OPEN: return 'connected';
+      case WebSocket.CLOSING: return 'closing';
+      case WebSocket.CLOSED: return 'closed';
+      default: return 'unknown';
+    }
+  }
+
+  // 이벤트 리스너 등록
+  on(event: string, handler: Function) {
+    this.addEventHandler(event, handler);
+  }
+
+  // 이벤트 리스너 제거
+  off(event: string, handler: Function) {
+    this.removeEventHandler(event, handler);
+  }
+
+  // 기존 호환성을 위한 속성들
+  get onTickerUpdate() {
+    const handlers = this.eventHandlers.get('tickerUpdate');
+    return handlers ? Array.from(handlers)[0] as ((ticker: UpbitTicker) => void) : undefined;
+  }
+
+  set onTickerUpdate(handler: ((ticker: UpbitTicker) => void) | undefined) {
+    if (handler) {
+      this.addEventHandler('tickerUpdate', handler);
+    }
+  }
+
+  get onConnect() {
+    const handlers = this.eventHandlers.get('connect');
+    return handlers ? Array.from(handlers)[0] as (() => void) : undefined;
+  }
+
+  set onConnect(handler: (() => void) | undefined) {
+    if (handler) {
+      this.addEventHandler('connect', handler);
+    }
+  }
+
+  get onDisconnect() {
+    const handlers = this.eventHandlers.get('disconnect');
+    return handlers ? Array.from(handlers)[0] as (() => void) : undefined;
+  }
+
+  set onDisconnect(handler: (() => void) | undefined) {
+    if (handler) {
+      this.addEventHandler('disconnect', handler);
+    }
+  }
+
+  get onError() {
+    const handlers = this.eventHandlers.get('error');
+    return handlers ? Array.from(handlers)[0] as ((error: Event) => void) : undefined;
+  }
+
+  set onError(handler: ((error: Event) => void) | undefined) {
+    if (handler) {
+      this.addEventHandler('error', handler);
+    }
+  }
 }
 
 // 싱글톤 인스턴스

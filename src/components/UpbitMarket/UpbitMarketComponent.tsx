@@ -10,6 +10,43 @@ const MarketContainer = styled.div`
   margin: 0 auto;
 `;
 
+const Header = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+  gap: 10px;
+`;
+
+const Title = styled.h1`
+  margin: 0;
+  color: #333;
+`;
+
+const UpdateInfo = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  color: #666;
+`;
+
+const LastUpdate = styled.span`
+  background: #f5f5f5;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-family: monospace;
+`;
+
+const ConnectionStatus = styled.div<{ status: string }>`
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: ${props => props.status === 'connected' ? '#00c851' : '#ff4444'};
+`;
+
 const MarketGrid = styled.div`
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
@@ -126,76 +163,80 @@ const UpbitMarketComponent: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'disconnected'>('disconnected');
+  const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
 
   // WebSocket 티커 업데이트 핸들러
   const handleTickerUpdate = useCallback((ticker: UpbitTicker) => {
     setTickers(prev => new Map(prev.set(ticker.market, ticker)));
+    setLastUpdate(new Date());
   }, []);
 
   // 초기 데이터 로드
   useEffect(() => {
-    const loadInitialData = async () => {
-      try {
-        setLoading(true);
-        
-        // 마켓 목록 조회 (REST API 사용)
-        const marketData = await upbitApi.getMarkets();
-        const krwMarkets = marketData.filter(market => market.market.startsWith('KRW-'));
-        
-        // DOGE를 특별히 포함시키기 위한 로직
-        const dogeMarket = krwMarkets.find(market => market.market === 'KRW-DOGE');
-        let selectedMarkets = krwMarkets.slice(0, 20); // 상위 20개
-        
-        // DOGE가 상위 20개에 없으면 마지막 항목을 DOGE로 교체
-        if (dogeMarket && !selectedMarkets.find(market => market.market === 'KRW-DOGE')) {
-          selectedMarkets = [...selectedMarkets.slice(0, 19), dogeMarket];
-        }
-        
-        setMarkets(selectedMarkets);
-
-        // 관심 종목 로드
-        const interestData = await interestService.getInterestMarkets();
-        setInterestMarkets(interestData);
-
-        // WebSocket 연결 및 구독
-        upbitWebSocket.onTickerUpdate = handleTickerUpdate;
-        upbitWebSocket.onConnect = () => {
-          setConnectionStatus('connected');
-          console.log('WebSocket 연결됨');
-        };
-        upbitWebSocket.onDisconnect = () => {
-          setConnectionStatus('disconnected');
-          console.log('WebSocket 연결 끊김');
-        };
-        upbitWebSocket.onError = () => {
-          setConnectionStatus('disconnected');
-          console.log('WebSocket 오류');
-        };
-        
-        setConnectionStatus('connecting');
-        upbitWebSocket.connect();
-        
-        // 마켓 구독
-        const marketCodes = selectedMarkets.map(market => market.market);
-        setTimeout(() => {
-          upbitWebSocket.subscribeToMarkets(marketCodes);
-        }, 1000); // 연결 후 1초 뒤 구독
-
-      } catch (err) {
-        setError('데이터를 불러오는 중 오류가 발생했습니다.');
-        console.error('Error fetching data:', err);
-      } finally {
-        setLoading(false);
-      }
+    const fetchData = async () => {
+      setLoading(true);
+      await loadMarkets();
+      setLoading(false);
     };
 
-    loadInitialData();
+    fetchData();
 
-    // 컴포넌트 언마운트 시 WebSocket 연결 해제
+    // WebSocket 이벤트 핸들러 설정
+    upbitWebSocket.onTickerUpdate = handleTickerUpdate;
+    upbitWebSocket.onConnect = () => {
+      setConnectionStatus('connected');
+      console.log('마켓현황 WebSocket 연결됨');
+    };
+    upbitWebSocket.onDisconnect = () => {
+      setConnectionStatus('disconnected');
+      console.log('마켓현황 WebSocket 연결 끊김');
+    };
+    upbitWebSocket.onError = () => {
+      setConnectionStatus('disconnected');
+      console.log('마켓현황 WebSocket 오류');
+    };
+
     return () => {
+      // 컴포넌트 언마운트 시 이벤트 핸들러 제거
+      upbitWebSocket.onTickerUpdate = undefined;
+      upbitWebSocket.onConnect = undefined;
+      upbitWebSocket.onDisconnect = undefined;
+      upbitWebSocket.onError = undefined;
       upbitWebSocket.disconnect();
     };
   }, [handleTickerUpdate]);
+
+  const loadMarkets = async () => {
+    try {
+      // 마켓 목록 로드
+      const marketList = await upbitApi.getMarkets();
+      setMarkets(marketList);
+
+      // 초기 티커 데이터 로드
+      const initialTickers = await upbitApi.getTicker('KRW-BTC,KRW-ETH,KRW-XRP,KRW-ADA,KRW-DOGE,KRW-MATIC,KRW-DOT,KRW-TRX,KRW-LINK,KRW-UNI,KRW-ATOM,KRW-LTC,KRW-ETC,KRW-XLM,KRW-BCH,KRW-VET,KRW-FIL,KRW-THETA,KRW-SOL,KRW-NEO');
+      
+      // 초기 데이터를 Map으로 변환
+      const tickerMap = new Map();
+      initialTickers.forEach(ticker => {
+        tickerMap.set(ticker.market, ticker);
+      });
+      setTickers(tickerMap);
+      setLastUpdate(new Date());
+
+      // WebSocket 연결 및 구독
+      setConnectionStatus('connecting');
+      upbitWebSocket.connect();
+      
+      // 모든 마켓 구독
+      const marketCodes = marketList.map(market => market.market);
+      setTimeout(() => {
+        upbitWebSocket.subscribeToMarkets(marketCodes);
+      }, 2000);
+    } catch (err) {
+      setError('데이터를 불러오는 중 오류가 발생했습니다.');
+      console.error('Error fetching data:', err);
+    }
+  };
 
   const getTickerByMarket = (marketCode: string) => {
     return tickers.get(marketCode);
@@ -249,6 +290,14 @@ const UpbitMarketComponent: React.FC = () => {
     return volume.toFixed(2);
   };
 
+  const formatLastUpdate = (date: Date) => {
+    return date.toLocaleTimeString('ko-KR', {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit'
+    });
+  };
+
   if (loading) {
     return <Loading>데이터를 불러오는 중...</Loading>;
   }
@@ -259,16 +308,22 @@ const UpbitMarketComponent: React.FC = () => {
 
   return (
     <MarketContainer>
-      <h1>업비트 마켓 현황</h1>
-      <div style={{ 
-        textAlign: 'center', 
-        marginBottom: '10px',
-        fontSize: '14px',
-        color: connectionStatus === 'connected' ? '#00c851' : '#ff4444'
-      }}>
-        {connectionStatus === 'connected' ? '🟢 실시간 연결됨' : 
-         connectionStatus === 'connecting' ? '🟡 연결 중...' : '🔴 연결 끊김'}
-      </div>
+      <Header>
+        <Title>업비트 마켓 현황</Title>
+        <UpdateInfo>
+          <ConnectionStatus status={connectionStatus}>
+            {connectionStatus === 'connected' ? '🟢' : 
+             connectionStatus === 'connecting' ? '🟡' : '🔴'}
+            {connectionStatus === 'connected' ? '실시간' : 
+             connectionStatus === 'connecting' ? '연결중' : '연결끊김'}
+          </ConnectionStatus>
+          {lastUpdate && (
+            <LastUpdate>
+              마지막 업데이트: {formatLastUpdate(lastUpdate)}
+            </LastUpdate>
+          )}
+        </UpdateInfo>
+      </Header>
       <MarketGrid>
         {markets.map(market => {
           const ticker = getTickerByMarket(market.market);

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import styled from 'styled-components';
 import { upbitWebSocket, type UpbitTicker } from '../../services/upbitWebSocket';
+import { upbitApi } from '../../services/upbit';
 import { interestService, type InterestMarket } from '../../services/interestService';
 
 interface InterestData {
@@ -11,6 +12,43 @@ const InterestContainer = styled.div`
   padding: 20px;
   max-width: 1200px;
   margin: 0 auto;
+`;
+
+const Header = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+  gap: 10px;
+`;
+
+const Title = styled.h1`
+  margin: 0;
+  color: #333;
+`;
+
+const UpdateInfo = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  color: #666;
+`;
+
+const LastUpdate = styled.span`
+  background: #f5f5f5;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-family: monospace;
+`;
+
+const ConnectionStatus = styled.div<{ status: string }>`
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: ${props => props.status === 'connected' ? '#00c851' : '#ff4444'};
 `;
 
 const InterestGrid = styled.div`
@@ -166,48 +204,13 @@ const InterestMarkets: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'disconnected'>('disconnected');
+  const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
 
   // WebSocket 티커 업데이트 핸들러
   const handleTickerUpdate = useCallback((ticker: UpbitTicker) => {
     setTickers(prev => new Map(prev.set(ticker.market, ticker)));
+    setLastUpdate(new Date());
   }, []);
-
-  const loadInterestMarkets = async () => {
-    try {
-      // 관심 종목 서비스를 통해 로드 (로컬 스토리지 우선)
-      const allMarkets = await interestService.getInterestMarkets();
-      setInterestMarkets(allMarkets);
-
-      // WebSocket 연결 및 구독
-      if (allMarkets.length > 0) {
-        upbitWebSocket.onTickerUpdate = handleTickerUpdate;
-        upbitWebSocket.onConnect = () => {
-          setConnectionStatus('connected');
-          console.log('관심 종목 WebSocket 연결됨');
-        };
-        upbitWebSocket.onDisconnect = () => {
-          setConnectionStatus('disconnected');
-          console.log('관심 종목 WebSocket 연결 끊김');
-        };
-        upbitWebSocket.onError = () => {
-          setConnectionStatus('disconnected');
-          console.log('관심 종목 WebSocket 오류');
-        };
-        
-        setConnectionStatus('connecting');
-        upbitWebSocket.connect();
-        
-        // 관심 종목 마켓 구독
-        const marketCodes = allMarkets.map(market => market.market);
-        setTimeout(() => {
-          upbitWebSocket.subscribeToMarkets(marketCodes);
-        }, 1000); // 연결 후 1초 뒤 구독
-      }
-    } catch (err) {
-      setError('데이터를 불러오는 중 오류가 발생했습니다.');
-      console.error('Error fetching data:', err);
-    }
-  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -218,11 +221,65 @@ const InterestMarkets: React.FC = () => {
 
     fetchData();
 
-    // 컴포넌트 언마운트 시 WebSocket 연결 해제
+    // WebSocket 이벤트 핸들러 설정
+    upbitWebSocket.onTickerUpdate = handleTickerUpdate;
+    upbitWebSocket.onConnect = () => {
+      setConnectionStatus('connected');
+      console.log('관심 종목 WebSocket 연결됨');
+    };
+    upbitWebSocket.onDisconnect = () => {
+      setConnectionStatus('disconnected');
+      console.log('관심 종목 WebSocket 연결 끊김');
+    };
+    upbitWebSocket.onError = () => {
+      setConnectionStatus('disconnected');
+      console.log('관심 종목 WebSocket 오류');
+    };
+
     return () => {
+      // 컴포넌트 언마운트 시 이벤트 핸들러 제거
+      upbitWebSocket.onTickerUpdate = undefined;
+      upbitWebSocket.onConnect = undefined;
+      upbitWebSocket.onDisconnect = undefined;
+      upbitWebSocket.onError = undefined;
       upbitWebSocket.disconnect();
     };
   }, [handleTickerUpdate]);
+
+  const loadInterestMarkets = async () => {
+    try {
+      // 관심 종목 서비스를 통해 로드 (로컬 스토리지 우선)
+      const allMarkets = await interestService.getInterestMarkets();
+      setInterestMarkets(allMarkets);
+
+      // 초기 티커 데이터 로드 (REST API)
+      if (allMarkets.length > 0) {
+        const marketCodes = allMarkets.map(market => market.market).join(',');
+        const initialTickers = await upbitApi.getTicker(marketCodes);
+        
+        // 초기 데이터를 Map으로 변환
+        const tickerMap = new Map();
+        initialTickers.forEach(ticker => {
+          tickerMap.set(ticker.market, ticker);
+        });
+        setTickers(tickerMap);
+        setLastUpdate(new Date());
+
+        // WebSocket 연결 및 구독
+        setConnectionStatus('connecting');
+        upbitWebSocket.connect();
+        
+        // 관심 종목 마켓 구독
+        const marketCodesArray = allMarkets.map(market => market.market);
+        setTimeout(() => {
+          upbitWebSocket.subscribeToMarkets(marketCodesArray);
+        }, 2000); // 연결 후 2초 뒤 구독
+      }
+    } catch (err) {
+      setError('데이터를 불러오는 중 오류가 발생했습니다.');
+      console.error('Error fetching data:', err);
+    }
+  };
 
   const handleRemoveInterest = async (marketCode: string) => {
     try {
@@ -297,6 +354,14 @@ const InterestMarkets: React.FC = () => {
     return volume.toFixed(2);
   };
 
+  const formatLastUpdate = (date: Date) => {
+    return date.toLocaleTimeString('ko-KR', {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit'
+    });
+  };
+
   if (loading) {
     return <Loading>관심 종목을 불러오는 중...</Loading>;
   }
@@ -307,16 +372,25 @@ const InterestMarkets: React.FC = () => {
 
   return (
     <InterestContainer>
-      <h1>관심 종목</h1>
-      <div style={{ 
-        textAlign: 'center', 
-        marginBottom: '10px',
-        fontSize: '14px',
-        color: connectionStatus === 'connected' ? '#00c851' : '#ff4444'
-      }}>
-        {connectionStatus === 'connected' ? '🟢 실시간 연결됨' : 
-         connectionStatus === 'connecting' ? '🟡 연결 중...' : '🔴 연결 끊김'}
-      </div>
+      <Header>
+        <Title>관심 종목</Title>
+        <UpdateInfo>
+          <ConnectionStatus status={connectionStatus}>
+            {connectionStatus === 'connected' ? '🟢' : 
+             connectionStatus === 'connecting' ? '🟡' : '🔴'}
+            {connectionStatus === 'connected' ? '실시간' : 
+             connectionStatus === 'connecting' ? '연결중' : '연결끊김'}
+          </ConnectionStatus>
+          {lastUpdate && (
+            <LastUpdate>
+              마지막 업데이트: {formatLastUpdate(lastUpdate)}
+            </LastUpdate>
+          )}
+          <small style={{ fontSize: '12px', color: '#666' }}>
+            관심 종목 수: {interestMarkets.length}개
+          </small>
+        </UpdateInfo>
+      </Header>
       <InterestGrid>
         {interestMarkets.map((market, index) => {
           const ticker = getTickerByMarket(market.market);
