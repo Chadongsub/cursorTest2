@@ -5,6 +5,7 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import Dashboard from './pages/Dashboard';
 import MarketPage from './pages/MarketPage';
 import InterestPage from './pages/InterestPage';
+import UpbitSettingsPage from './pages/UpbitSettingsPage';
 
 const theme = createTheme({
   palette: {
@@ -24,6 +25,7 @@ function App() {
           <Route path="/" element={<Dashboard />} />
           <Route path="/market" element={<MarketPage />} />
           <Route path="/interest" element={<InterestPage />} />
+          <Route path="/upbit-settings" element={<UpbitSettingsPage />} />
         </Routes>
       </Router>
     </ThemeProvider>

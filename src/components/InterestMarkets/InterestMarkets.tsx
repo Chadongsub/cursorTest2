@@ -12,7 +12,8 @@ import {
   Skeleton,
   Tooltip,
   Button,
-  Grid
+  Grid,
+  Divider
 } from '@mui/material';
 import {
   TrendingUp as TrendingUpIcon,
@@ -399,25 +400,27 @@ const InterestMarkets: React.FC = () => {
                             <DragIndicatorIcon fontSize="small" />
                           </IconButton>
                         </Tooltip>
-                        <Tooltip title="관심 종목에서 삭제">
-                          <IconButton
+                        <Tooltip title="관심 종목 해제">
+                          <Button
+                            variant="contained"
                             size="small"
+                            color="secondary"
                             onClick={() => handleRemoveInterest(market.market)}
-                            sx={{ color: 'error.main' }}
+                            sx={{ minWidth: 0, px: 1, py: 0.5, fontSize: '0.75rem', flexShrink: 0 }}
                           >
-                            <DeleteIcon fontSize="small" />
-                          </IconButton>
+                            해제
+                          </Button>
                         </Tooltip>
                       </Box>
                     </Box>
-
+                    <Divider sx={{ my: 1 }} />
                     {/* 가격 영역 */}
                     <Box sx={{ mb: 2, flexShrink: 0 }}>
                       <PriceTypography variant="h5" change={ticker.change} sx={{ fontSize: '1.25rem' }}>
                         ₩{formatPrice(ticker.trade_price)}
                       </PriceTypography>
                     </Box>
-
+                    <Divider sx={{ my: 1 }} />
                     {/* 변동률 및 변동가격 영역 */}
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1, flexShrink: 0 }}>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
@@ -438,7 +441,7 @@ const InterestMarkets: React.FC = () => {
                         ₩{formatPrice(ticker.change_price)}
                       </ChangeTypography>
                     </Box>
-
+                    <Divider sx={{ my: 1 }} />
                     {/* 거래량 영역 - 하단에 고정 */}
                     <Box sx={{ mt: 'auto', flexShrink: 0 }}>
                       <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>

@@ -30,6 +30,7 @@ const mainMenu = [
 const subMenu = [
   { text: '설정', icon: <SettingsIcon />, path: '/settings' },
   { text: '정보', icon: <InfoIcon />, path: '/info' },
+  { text: '업비트 설정', icon: <SettingsIcon />, path: '/upbit-settings' },
 ];
 
 export default function Sidebar() {
