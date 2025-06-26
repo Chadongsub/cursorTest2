@@ -38,6 +38,7 @@ class UpbitWebSocketService {
   private reconnectInterval = 3000;
   private isConnecting = false;
   private subscriptions = new Set<string>();
+  private orderBookSubscriptions = new Set<string>();
   private eventHandlers = new Map<string, Set<Function>>();
   private connectionId = 0;
 
@@ -93,8 +94,14 @@ class UpbitWebSocketService {
         
         // 이전 구독 복원
         if (this.subscriptions.size > 0) {
-          console.log('이전 구독 복원:', Array.from(this.subscriptions));
+          console.log('이전 티커 구독 복원:', Array.from(this.subscriptions));
           this.subscribeToMarkets(Array.from(this.subscriptions));
+        }
+        
+        // 이전 호가 구독 복원
+        if (this.orderBookSubscriptions.size > 0) {
+          console.log('이전 호가 구독 복원:', Array.from(this.orderBookSubscriptions));
+          this.subscribeOrderBook(Array.from(this.orderBookSubscriptions));
         }
       };
 
@@ -194,6 +201,7 @@ class UpbitWebSocketService {
   subscribeOrderBook(markets: string[]) {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
       console.warn('WebSocket이 연결되지 않았습니다. 연결 후 호가 구독합니다.');
+      markets.forEach(market => this.orderBookSubscriptions.add(market));
       this.connect();
       return;
     }
@@ -213,6 +221,10 @@ class UpbitWebSocketService {
     try {
       console.log('호가 구독 메시지 전송:', JSON.stringify(subscribeMessage, null, 2));
       this.ws.send(JSON.stringify(subscribeMessage));
+      
+      // 호가 구독 목록 업데이트
+      markets.forEach(market => this.orderBookSubscriptions.add(market));
+      
       console.log('호가 구독 완료:', markets);
     } catch (error) {
       console.error('호가 구독 메시지 전송 실패:', error);
@@ -225,6 +237,9 @@ class UpbitWebSocketService {
       return;
     }
 
+    // 호가 구독 목록에서 제거
+    markets.forEach(market => this.orderBookSubscriptions.delete(market));
+    
     // 업비트는 개별 해제를 지원하지 않으므로 전체 재구독
     console.log('호가 구독 해제:', markets);
   }
@@ -284,6 +299,7 @@ class UpbitWebSocketService {
       this.ws = null;
     }
     this.subscriptions.clear();
+    this.orderBookSubscriptions.clear();
     this.reconnectAttempts = 0;
     this.isConnecting = false;
   }
