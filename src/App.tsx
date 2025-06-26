@@ -15,7 +15,93 @@ const theme = createTheme({
     secondary: { main: '#dc004e' },
     background: { default: '#f4f6f8' },
   },
+  typography: {
+    fontFamily: '"Nanum Square", "Roboto", "Helvetica", "Arial", sans-serif',
+    h1: {
+      fontSize: '2.5rem',
+      fontWeight: 700,
+    },
+    h2: {
+      fontSize: '2rem',
+      fontWeight: 700,
+    },
+    h3: {
+      fontSize: '1.75rem',
+      fontWeight: 700,
+    },
+    h4: {
+      fontSize: '1.5rem',
+      fontWeight: 700,
+    },
+    h5: {
+      fontSize: '1.25rem',
+      fontWeight: 600,
+    },
+    h6: {
+      fontSize: '1.125rem',
+      fontWeight: 600,
+    },
+    body1: {
+      fontSize: '1rem',
+      fontWeight: 400,
+    },
+    body2: {
+      fontSize: '0.875rem',
+      fontWeight: 400,
+    },
+    caption: {
+      fontSize: '0.75rem',
+      fontWeight: 400,
+    },
+    button: {
+      fontSize: '0.875rem',
+      fontWeight: 600,
+      textTransform: 'none',
+    },
+  },
   shape: { borderRadius: 12 },
+  components: {
+    MuiCssBaseline: {
+      styleOverrides: {
+        body: {
+          fontFamily: '"Nanum Square", "Roboto", "Helvetica", "Arial", sans-serif',
+          WebkitFontSmoothing: 'antialiased',
+          MozOsxFontSmoothing: 'grayscale',
+        },
+      },
+    },
+    MuiChip: {
+      styleOverrides: {
+        root: {
+          fontSize: '0.75rem',
+          fontWeight: 500,
+        },
+        label: {
+          fontSize: '0.75rem',
+          fontWeight: 500,
+        },
+      },
+    },
+    MuiButton: {
+      styleOverrides: {
+        root: {
+          fontSize: '0.875rem',
+          fontWeight: 600,
+          textTransform: 'none',
+        },
+        sizeSmall: {
+          fontSize: '0.75rem',
+        },
+      },
+    },
+    MuiTypography: {
+      styleOverrides: {
+        root: {
+          fontFamily: '"Nanum Square", "Roboto", "Helvetica", "Arial", sans-serif',
+        },
+      },
+    },
+  },
 });
 
 function App() {

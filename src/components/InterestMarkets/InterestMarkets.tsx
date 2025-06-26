@@ -507,7 +507,7 @@ const InterestMarkets: React.FC<InterestMarketsProps> = ({
         {/* 헤더 */}
         <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
           <Box>
-            <Typography variant="body2" color="text.secondary">
+            <Typography variant="body1" color="text.secondary" sx={{ fontSize: '0.875rem', fontWeight: 500 }}>
               실시간 관심 종목 정보
             </Typography>
           </Box>
@@ -527,9 +527,10 @@ const InterestMarkets: React.FC<InterestMarketsProps> = ({
                         label={`${selected.length}개 선택`} 
                         size="small" 
                         color="warning"
+                        sx={{ fontSize: '0.75rem', height: '20px' }}
                       />
                     ) : (
-                      <Typography variant="body2" color="text.secondary">
+                      <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
                         경보 필터
                       </Typography>
                     )}
@@ -540,7 +541,7 @@ const InterestMarkets: React.FC<InterestMarketsProps> = ({
                 {warningTypeOptions.map((option) => (
                   <MenuItem key={option.value} value={option.value}>
                     <Checkbox checked={localSelectedWarnings.indexOf(option.value) > -1} />
-                    <ListItemText primary={option.label} />
+                    <ListItemText primary={option.label} sx={{ '& .MuiListItemText-primary': { fontSize: '0.875rem' } }} />
                   </MenuItem>
                 ))}
               </Select>
@@ -553,7 +554,12 @@ const InterestMarkets: React.FC<InterestMarketsProps> = ({
               color={localShowWarningOnly ? 'error' : 'default'}
               variant={localShowWarningOnly ? 'filled' : 'outlined'}
               onClick={handleShowWarningOnlyToggle}
-              sx={{ cursor: 'pointer' }}
+              sx={{ 
+                cursor: 'pointer',
+                fontSize: '0.75rem',
+                height: '24px',
+                '& .MuiChip-label': { fontSize: '0.75rem' }
+              }}
             />
 
             <Chip
@@ -561,18 +567,33 @@ const InterestMarkets: React.FC<InterestMarketsProps> = ({
               label={getConnectionText()}
               color={connectionStatus === 'connected' ? 'success' : connectionStatus === 'connecting' ? 'warning' : 'error'}
               variant="outlined"
+              sx={{ 
+                fontSize: '0.75rem',
+                height: '24px',
+                '& .MuiChip-label': { fontSize: '0.75rem' }
+              }}
             />
             {lastUpdate && (
               <Chip
                 label={`마지막 업데이트: ${formatLastUpdate(lastUpdate)}`}
                 variant="outlined"
                 size="small"
+                sx={{ 
+                  fontSize: '0.75rem',
+                  height: '20px',
+                  '& .MuiChip-label': { fontSize: '0.75rem' }
+                }}
               />
             )}
             <Chip
               label={`관심 종목 수: ${interestMarkets.length}개`}
               variant="outlined"
               size="small"
+              sx={{ 
+                fontSize: '0.75rem',
+                height: '20px',
+                '& .MuiChip-label': { fontSize: '0.75rem' }
+              }}
             />
             <Tooltip title="새로고침">
               <IconButton onClick={loadInterestMarkets} color="primary">
@@ -618,6 +639,7 @@ const InterestMarkets: React.FC<InterestMarketsProps> = ({
                               textOverflow: 'ellipsis',
                               whiteSpace: 'nowrap',
                               fontSize: '1rem',
+                              fontWeight: 600,
                               mb: 0.5
                             }}
                           >
@@ -630,21 +652,29 @@ const InterestMarkets: React.FC<InterestMarketsProps> = ({
                               overflow: 'hidden',
                               textOverflow: 'ellipsis',
                               whiteSpace: 'nowrap',
-                              fontSize: '0.75rem'
+                              fontSize: '0.75rem',
+                              mb: 0.5
                             }}
                           >
                             {market.market}
-                            {/* 시장경보 표시 */}
-                            {ticker.market_warning && (
-                              <Chip
-                                icon={<WarningIcon />}
-                                label={getWarningLabel(ticker.market_warning)}
-                                color="warning"
-                                size="small"
-                                sx={{ mt: 0.5, fontSize: '0.6rem', height: '20px' }}
-                              />
-                            )}
                           </Typography>
+                          {/* 시장경보 표시 */}
+                          {ticker.market_warning && (
+                            <Chip
+                              icon={<WarningIcon />}
+                              label={getWarningLabel(ticker.market_warning)}
+                              color="warning"
+                              size="small"
+                              sx={{ 
+                                fontSize: '0.625rem', 
+                                height: '18px',
+                                '& .MuiChip-label': {
+                                  fontSize: '0.625rem',
+                                  px: 0.5
+                                }
+                              }}
+                            />
+                          )}
                         </Box>
                         <Box sx={{ display: 'flex', gap: 1, flexShrink: 0 }}>
                           <Tooltip title="드래그하여 순서 변경">
@@ -658,7 +688,14 @@ const InterestMarkets: React.FC<InterestMarketsProps> = ({
                               size="small"
                               color="secondary"
                               onClick={() => handleRemoveInterest(market.market)}
-                              sx={{ minWidth: 0, px: 1, py: 0.5, fontSize: '0.75rem', flexShrink: 0 }}
+                              sx={{ 
+                                minWidth: 0, 
+                                px: 1, 
+                                py: 0.5, 
+                                fontSize: '0.75rem', 
+                                fontWeight: 600,
+                                flexShrink: 0 
+                              }}
                             >
                               해제
                             </Button>
@@ -668,7 +705,11 @@ const InterestMarkets: React.FC<InterestMarketsProps> = ({
                       <Divider sx={{ my: 1 }} />
                       {/* 가격 영역 */}
                       <Box sx={{ mb: 1, flexShrink: 0 }}>
-                        <PriceTypography variant="h5" change={ticker.change} sx={{ fontSize: '1.25rem' }}>
+                        <PriceTypography variant="h5" change={ticker.change} sx={{ 
+                          fontSize: '1.25rem',
+                          fontWeight: 700,
+                          lineHeight: 1.2
+                        }}>
                           ₩{formatPrice(ticker.trade_price)}
                         </PriceTypography>
                       </Box>
@@ -683,12 +724,18 @@ const InterestMarkets: React.FC<InterestMarketsProps> = ({
                           ) : (
                             <RemoveIcon color="action" fontSize="small" />
                           )}
-                          <ChangeTypography variant="body2" change={ticker.change} sx={{ fontSize: '0.75rem' }}>
+                          <ChangeTypography variant="body2" change={ticker.change} sx={{ 
+                            fontSize: '0.875rem',
+                            fontWeight: 600
+                          }}>
                             {ticker.change === 'RISE' ? '+' : ticker.change === 'FALL' ? '-' : ''}
                             {(ticker.change_rate * 100).toFixed(2)}%
                           </ChangeTypography>
                         </Box>
-                        <ChangeTypography variant="body2" change={ticker.change} sx={{ fontSize: '0.75rem' }}>
+                        <ChangeTypography variant="body2" change={ticker.change} sx={{ 
+                          fontSize: '0.875rem',
+                          fontWeight: 600
+                        }}>
                           {ticker.change === 'RISE' ? '+' : ticker.change === 'FALL' ? '-' : ''}
                           ₩{formatPrice(ticker.change_price)}
                         </ChangeTypography>
@@ -696,7 +743,10 @@ const InterestMarkets: React.FC<InterestMarketsProps> = ({
                       <Divider sx={{ my: 1 }} />
                       {/* 거래량 영역 */}
                       <Box sx={{ mb: 1, flexShrink: 0 }}>
-                        <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>
+                        <Typography variant="caption" color="text.secondary" sx={{ 
+                          fontSize: '0.75rem',
+                          fontWeight: 400
+                        }}>
                           거래량: {formatVolume(ticker.trade_volume)}
                         </Typography>
                       </Box>
@@ -710,9 +760,9 @@ const InterestMarkets: React.FC<InterestMarketsProps> = ({
                           onClick={() => handleCurrentPriceClick(market.market)}
                           sx={{ 
                             flex: 1, 
-                            fontSize: '0.7rem', 
-                            py: 0.5,
-                            minHeight: '28px'
+                            fontSize: '0.75rem',
+                            fontWeight: 600,
+                            py: 0.5
                           }}
                         >
                           현재가
@@ -724,9 +774,9 @@ const InterestMarkets: React.FC<InterestMarketsProps> = ({
                           onClick={() => handleOrderBookClick(market.market)}
                           sx={{ 
                             flex: 1, 
-                            fontSize: '0.7rem', 
-                            py: 0.5,
-                            minHeight: '28px'
+                            fontSize: '0.75rem',
+                            fontWeight: 600,
+                            py: 0.5
                           }}
                         >
                           호가

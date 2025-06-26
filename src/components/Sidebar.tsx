@@ -23,6 +23,7 @@ import {
   Favorite as FavoriteIcon,
   Settings as SettingsIcon
 } from '@mui/icons-material';
+import { Link } from 'react-router-dom';
 
 const drawerWidth = 240;
 
@@ -91,24 +92,43 @@ const Sidebar: React.FC = () => {
               {mainMenu.map((item) => (
                 <ListItem disablePadding key={item.text}>
                   <ListItemButton
-                    selected={selected === item.text}
-                    onClick={() => handleNavigation(item.path)}
+                    key={item.path}
+                    component={Link}
+                    to={item.path}
+                    selected={location.pathname === item.path}
                     sx={{
+                      borderRadius: 1,
                       mx: 1,
-                      borderRadius: 2,
-                      color: 'text.primary',
-                      pl: 4,
+                      mb: 0.5,
                       '&.Mui-selected': {
-                        backgroundColor: 'action.selected',
-                        color: 'primary.main',
+                        backgroundColor: 'primary.main',
+                        color: 'primary.contrastText',
+                        '&:hover': {
+                          backgroundColor: 'primary.dark',
+                        },
                       },
                       '&:hover': {
                         backgroundColor: 'action.hover',
                       },
                     }}
                   >
-                    <ListItemIcon>{item.icon}</ListItemIcon>
-                    <ListItemText primary={item.text} />
+                    <ListItemIcon
+                      sx={{
+                        color: location.pathname === item.path ? 'inherit' : 'text.secondary',
+                        minWidth: 40,
+                      }}
+                    >
+                      {item.icon}
+                    </ListItemIcon>
+                    <ListItemText 
+                      primary={item.text} 
+                      sx={{ 
+                        '& .MuiListItemText-primary': { 
+                          fontSize: '0.875rem',
+                          fontWeight: 500
+                        } 
+                      }}
+                    />
                   </ListItemButton>
                 </ListItem>
               ))}

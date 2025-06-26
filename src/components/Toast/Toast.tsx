@@ -23,7 +23,19 @@ const Toast: React.FC<ToastProps> = ({
       onClose={onClose}
       anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
     >
-      <Alert onClose={onClose} severity={severity} sx={{ width: '100%' }}>
+      <Alert 
+        onClose={onClose} 
+        severity={severity} 
+        sx={{ 
+          width: '100%',
+          fontSize: '0.875rem',
+          fontWeight: 500,
+          '& .MuiAlert-message': {
+            fontSize: '0.875rem',
+            fontWeight: 500
+          }
+        }}
+      >
         {message}
       </Alert>
     </Snackbar>

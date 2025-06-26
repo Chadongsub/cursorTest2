@@ -58,7 +58,29 @@ export default function UpbitSettingsPage() {
         onClose={handleCloseToast}
       />
       <Paper sx={{ p: 4, maxWidth: 'sm', mx: 'auto' }}>
-        <Typography variant="h5" gutterBottom>업비트 설정</Typography>
+        <Typography 
+          variant="h4" 
+          component="h1" 
+          gutterBottom
+          sx={{ 
+            fontSize: '1.75rem',
+            fontWeight: 700,
+            mb: 2
+          }}
+        >
+          업비트 설정
+        </Typography>
+        <Typography 
+          variant="body1" 
+          color="text.secondary"
+          sx={{ 
+            fontSize: '1rem',
+            fontWeight: 400,
+            mb: 3
+          }}
+        >
+          업비트 API 및 WebSocket 연결 설정을 관리합니다.
+        </Typography>
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
           <FormControlLabel
             control={<Switch checked={useSocket} onChange={e => setUseSocket(e.target.checked)} color="primary" />}

@@ -64,7 +64,7 @@ const AnimatedPriceTypography = styled(PriceTypography, {
 }));
 
 const CurrentPricePage: React.FC = () => {
-  const { market } = useParams<{ market: string }>();
+  const { marketCode } = useParams<{ marketCode: string }>();
   const navigate = useNavigate();
   const [ticker, setTicker] = useState<UpbitTicker | null>(null);
   const [loading, setLoading] = useState(true);
@@ -143,7 +143,7 @@ const CurrentPricePage: React.FC = () => {
 
   // WebSocket 티커 업데이트 핸들러
   const handleTickerUpdate = (updatedTicker: WebSocketTicker) => {
-    if (updatedTicker.market === market) {
+    if (updatedTicker.market === marketCode) {
       // 이전 가격과 비교하여 애니메이션 설정
       if (ticker) {
         if (updatedTicker.trade_price > ticker.trade_price) {
@@ -182,11 +182,11 @@ const CurrentPricePage: React.FC = () => {
   // 초기 데이터 로드
   useEffect(() => {
     const loadTickerData = async () => {
-      if (!market) return;
+      if (!marketCode) return;
       
       try {
         setLoading(true);
-        const tickers = await upbitApi.getTicker(market);
+        const tickers = await upbitApi.getTicker(marketCode);
         if (tickers.length > 0) {
           setTicker(tickers[0]);
           setLastUpdate(new Date());
@@ -200,14 +200,14 @@ const CurrentPricePage: React.FC = () => {
     };
 
     loadTickerData();
-  }, [market]);
+  }, [marketCode]);
 
   // WebSocket 연결
   useEffect(() => {
     const settings = getUpbitSettings();
     const { useSocket } = settings;
 
-    if (useSocket && market) {
+    if (useSocket && marketCode) {
       // 초기 연결 상태 설정
       const currentState = upbitWebSocket.getConnectionState();
       if (currentState === 'connecting') {
@@ -215,7 +215,7 @@ const CurrentPricePage: React.FC = () => {
       } else if (currentState === 'connected') {
         setConnectionStatus('connected');
         // 이미 연결된 상태라면 해당 마켓 구독
-        upbitWebSocket.subscribeToMarkets([market]);
+        upbitWebSocket.subscribeToMarkets([marketCode]);
       } else {
         setConnectionStatus('disconnected');
         // 연결되지 않은 상태라면 연결 시도
@@ -228,8 +228,8 @@ const CurrentPricePage: React.FC = () => {
         setConnectionStatus('connected');
         showToast('실시간 데이터 연결됨', 'success');
         // 연결 후 해당 마켓 구독
-        if (market) {
-          upbitWebSocket.subscribeToMarkets([market]);
+        if (marketCode) {
+          upbitWebSocket.subscribeToMarkets([marketCode]);
         }
       };
       upbitWebSocket.onDisconnect = () => {
@@ -247,8 +247,8 @@ const CurrentPricePage: React.FC = () => {
         if (currentState === 'connected' && connectionStatus !== 'connected') {
           setConnectionStatus('connected');
           // 연결 상태가 변경되면 해당 마켓 구독
-          if (market) {
-            upbitWebSocket.subscribeToMarkets([market]);
+          if (marketCode) {
+            upbitWebSocket.subscribeToMarkets([marketCode]);
           }
         } else if (currentState === 'connecting' && connectionStatus !== 'connecting') {
           setConnectionStatus('connecting');
@@ -260,8 +260,8 @@ const CurrentPricePage: React.FC = () => {
       return () => {
         clearInterval(connectionCheckInterval);
         // 컴포넌트 언마운트 시 해당 마켓 구독 해제
-        if (market) {
-          upbitWebSocket.unsubscribeFromMarkets([market]);
+        if (marketCode) {
+          upbitWebSocket.unsubscribeFromMarkets([marketCode]);
         }
         upbitWebSocket.onTickerUpdate = undefined;
         upbitWebSocket.onConnect = undefined;
@@ -271,24 +271,24 @@ const CurrentPricePage: React.FC = () => {
     } else {
       setConnectionStatus('disconnected');
     }
-  }, [market, connectionStatus]);
+  }, [marketCode, connectionStatus]);
 
   const handleRefresh = async () => {
-    if (!market) return;
+    if (!marketCode) return;
     
     try {
       setLoading(true);
       
       // WebSocket이 연결된 상태라면 WebSocket을 통해 최신 데이터 요청
       if (connectionStatus === 'connected') {
-        console.log('WebSocket을 통해 최신 데이터 요청:', market);
+        console.log('WebSocket을 통해 최신 데이터 요청:', marketCode);
         // WebSocket을 통해 해당 마켓의 최신 데이터를 받기 위해 구독 갱신
-        upbitWebSocket.subscribeToMarkets([market]);
+        upbitWebSocket.subscribeToMarkets([marketCode]);
         showToast('실시간 데이터를 요청했습니다.', 'info');
       } else {
         // WebSocket이 연결되지 않은 상태라면 API 호출
-        console.log('API를 통해 데이터 새로고침:', market);
-        const tickers = await upbitApi.getTicker(market);
+        console.log('API를 통해 데이터 새로고침:', marketCode);
+        const tickers = await upbitApi.getTicker(marketCode);
         if (tickers.length > 0) {
           setTicker(tickers[0]);
           setLastUpdate(new Date());
@@ -343,8 +343,17 @@ const CurrentPricePage: React.FC = () => {
             </IconButton>
           </Tooltip>
           <Box>
-            <Typography variant="h5" gutterBottom>
-              {ticker.market} 현재가 정보
+            <Typography 
+              variant="h4" 
+              component="h1" 
+              gutterBottom
+              sx={{ 
+                fontSize: '1.75rem',
+                fontWeight: 700,
+                mb: 2
+              }}
+            >
+              {marketCode} 현재가
             </Typography>
             <Typography variant="body2" color="text.secondary">
               실시간 현재가 및 거래 정보

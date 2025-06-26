@@ -234,8 +234,17 @@ const OrderBookPage: React.FC = () => {
             </IconButton>
           </Tooltip>
           <Box>
-            <Typography variant="h5" gutterBottom>
-              {market} 호가 정보
+            <Typography 
+              variant="h4" 
+              component="h1" 
+              gutterBottom
+              sx={{ 
+                fontSize: '1.75rem',
+                fontWeight: 700,
+                mb: 2
+              }}
+            >
+              {market} 호가
             </Typography>
             <Typography variant="body2" color="text.secondary">
               실시간 호가 및 거래 정보
