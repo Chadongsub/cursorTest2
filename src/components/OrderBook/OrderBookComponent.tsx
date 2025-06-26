@@ -98,6 +98,7 @@ const OrderBookComponent: React.FC<OrderBookComponentProps> = ({ market }) => {
   // WebSocket 호가 업데이트 핸들러
   const handleOrderBookUpdate = (updatedOrderBook: any) => {
     if (updatedOrderBook.market === market) {
+      console.log('OrderBookComponent에서 호가 업데이트 수신:', updatedOrderBook.market, '호가 단위 수:', updatedOrderBook.orderbook_units?.length || 0);
       setOrderBook(updatedOrderBook);
     }
   };

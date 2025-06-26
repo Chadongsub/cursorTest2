@@ -358,6 +358,10 @@ const InterestMarkets: React.FC = () => {
     navigate(`/current-price/${marketCode}`);
   };
 
+  const handleOrderBookClick = (marketCode: string) => {
+    navigate(`/orderbook/${marketCode}`);
+  };
+
   if (loading) {
     return (
       <Box>
@@ -571,7 +575,7 @@ const InterestMarkets: React.FC = () => {
                           variant="outlined"
                           size="small"
                           color="secondary"
-                          onClick={() => handleCurrentPriceClick(market.market)}
+                          onClick={() => handleOrderBookClick(market.market)}
                           sx={{ 
                             flex: 1, 
                             fontSize: '0.7rem', 

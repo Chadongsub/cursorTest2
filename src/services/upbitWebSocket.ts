@@ -211,7 +211,7 @@ class UpbitWebSocketService {
     ];
 
     try {
-      console.log('호가 구독 메시지 전송:', subscribeMessage);
+      console.log('호가 구독 메시지 전송:', JSON.stringify(subscribeMessage, null, 2));
       this.ws.send(JSON.stringify(subscribeMessage));
       console.log('호가 구독 완료:', markets);
     } catch (error) {
@@ -249,6 +249,8 @@ class UpbitWebSocketService {
 
   // 메시지 처리
   private handleMessage(data: any) {
+    console.log('WebSocket 메시지 수신:', data.type, data);
+    
     if (data.type === 'ticker') {
       // code 필드를 market으로 매핑
       const tickerData = {
@@ -264,7 +266,7 @@ class UpbitWebSocketService {
         ...data,
         market: data.code // code를 market으로 변환
       };
-      console.log('호가 데이터 수신:', orderBookData.market);
+      console.log('호가 데이터 수신:', orderBookData.market, '호가 단위 수:', orderBookData.orderbook_units?.length || 0);
       // 호가 데이터 이벤트 발생
       this.emitEvent('orderBookUpdate', orderBookData);
     } else if (data.type === 'trade') {

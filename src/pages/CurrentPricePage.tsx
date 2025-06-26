@@ -27,7 +27,6 @@ import { upbitWebSocket, type UpbitTicker as WebSocketTicker } from '../services
 import { getUpbitSettings } from '../utils/upbitSettings';
 import Toast from '../components/Toast/Toast';
 import PageLayout from '../components/Layout/PageLayout';
-import OrderBookComponent from '../components/OrderBook/OrderBookComponent';
 
 const PriceTypography = styled(Typography, {
   shouldForwardProp: (prop) => prop !== 'change'
@@ -486,13 +485,6 @@ const CurrentPricePage: React.FC = () => {
                 </Card>
               </Grid>
             </Grid>
-          </Paper>
-        </Grid>
-
-        {/* 호가 정보 카드 */}
-        <Grid sx={{ width: '100%' }}>
-          <Paper sx={{ p: 3 }}>
-            <OrderBookComponent market={market || ''} />
           </Paper>
         </Grid>
       </Grid>
