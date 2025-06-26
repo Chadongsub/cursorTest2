@@ -9,6 +9,7 @@ export default function MarketPage() {
       <Typography variant="h4" component="h1" gutterBottom>
         마켓현황
       </Typography>
+      
       <Grid container spacing={3}>
         <Grid sx={{ width: '100%' }}>
           <Paper sx={{ p: 2 }}>

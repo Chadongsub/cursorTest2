@@ -278,11 +278,22 @@ const CurrentPricePage: React.FC = () => {
     
     try {
       setLoading(true);
-      const tickers = await upbitApi.getTicker(market);
-      if (tickers.length > 0) {
-        setTicker(tickers[0]);
-        setLastUpdate(new Date());
-        showToast('데이터가 새로고침되었습니다.', 'success');
+      
+      // WebSocket이 연결된 상태라면 WebSocket을 통해 최신 데이터 요청
+      if (connectionStatus === 'connected') {
+        console.log('WebSocket을 통해 최신 데이터 요청:', market);
+        // WebSocket을 통해 해당 마켓의 최신 데이터를 받기 위해 구독 갱신
+        upbitWebSocket.subscribeToMarkets([market]);
+        showToast('실시간 데이터를 요청했습니다.', 'info');
+      } else {
+        // WebSocket이 연결되지 않은 상태라면 API 호출
+        console.log('API를 통해 데이터 새로고침:', market);
+        const tickers = await upbitApi.getTicker(market);
+        if (tickers.length > 0) {
+          setTicker(tickers[0]);
+          setLastUpdate(new Date());
+          showToast('데이터가 새로고침되었습니다.', 'success');
+        }
       }
     } catch (err) {
       showToast('새로고침 중 오류가 발생했습니다.', 'error');

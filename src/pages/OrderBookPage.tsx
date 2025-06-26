@@ -30,6 +30,7 @@ const OrderBookPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected' | 'connecting'>('disconnected');
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0); // 새로고침을 위한 키
   const [toast, setToast] = useState<{
     open: boolean;
     message: string;
@@ -170,10 +171,21 @@ const OrderBookPage: React.FC = () => {
     
     try {
       setLoading(true);
-      // 호가 데이터는 OrderBookComponent에서 자체적으로 처리하므로
-      // 여기서는 연결 상태만 확인
+      
+      // WebSocket이 연결된 상태라면 WebSocket을 통해 최신 데이터 요청
+      if (connectionStatus === 'connected') {
+        console.log('WebSocket을 통해 최신 호가 데이터 요청:', market);
+        // WebSocket을 통해 해당 마켓의 최신 호가 데이터를 받기 위해 구독 갱신
+        upbitWebSocket.subscribeOrderBook([market]);
+        showToast('실시간 호가 데이터를 요청했습니다.', 'info');
+      } else {
+        // WebSocket이 연결되지 않은 상태라면 refreshKey를 증가시켜 API 호출
+        console.log('API를 통해 호가 데이터 새로고침:', market);
+        setRefreshKey(prev => prev + 1);
+        showToast('호가 데이터가 새로고침되었습니다.', 'success');
+      }
+      
       setLastUpdate(new Date());
-      showToast('데이터가 새로고침되었습니다.', 'success');
     } catch (err) {
       showToast('새로고침 중 오류가 발생했습니다.', 'error');
     } finally {
@@ -256,7 +268,7 @@ const OrderBookPage: React.FC = () => {
       <Grid container spacing={3}>
         <Grid sx={{ width: '100%' }}>
           <Paper sx={{ p: 3 }}>
-            <OrderBookComponent market={market} />
+            <OrderBookComponent market={market} refreshKey={refreshKey} />
           </Paper>
         </Grid>
       </Grid>

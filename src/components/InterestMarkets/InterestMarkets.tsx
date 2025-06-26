@@ -15,7 +15,13 @@ import {
   Grid,
   Divider,
   useTheme,
-  useMediaQuery
+  useMediaQuery,
+  FormControl,
+  Select,
+  MenuItem,
+  Checkbox,
+  ListItemText,
+  OutlinedInput
 } from '@mui/material';
 import {
   TrendingUp as TrendingUpIcon,
@@ -26,12 +32,14 @@ import {
   Wifi as WifiIcon,
   WifiOff as WifiOffIcon,
   WifiTethering as WifiTetheringIcon,
-  Refresh as RefreshIcon
+  Refresh as RefreshIcon,
+  Warning as WarningIcon,
+  FilterList as FilterListIcon
 } from '@mui/icons-material';
 import { styled } from '@mui/material/styles';
 import { useNavigate } from 'react-router-dom';
 import { upbitWebSocket, type UpbitTicker } from '../../services/upbitWebSocket';
-import { upbitApi } from '../../services/upbit';
+import { upbitApi, type MarketWarningType } from '../../services/upbit';
 import { interestService, type InterestMarket } from '../../services/interestService';
 import { getUpbitSettings } from '../../utils/upbitSettings';
 import Toast from '../Toast/Toast';
@@ -78,7 +86,15 @@ const ChangeTypography = styled(Typography, {
          theme.palette.text.secondary,
 }));
 
-const InterestMarkets: React.FC = () => {
+interface InterestMarketsProps {
+  selectedWarnings?: MarketWarningType[];
+  showWarningOnly?: boolean;
+}
+
+const InterestMarkets: React.FC<InterestMarketsProps> = ({ 
+  selectedWarnings = [], 
+  showWarningOnly = false 
+}) => {
   const [interestMarkets, setInterestMarkets] = useState<InterestMarket[]>([]);
   const [tickers, setTickers] = useState<{ [key: string]: UpbitTicker }>({});
   const [loading, setLoading] = useState(true);
@@ -86,6 +102,8 @@ const InterestMarkets: React.FC = () => {
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected' | 'connecting'>('disconnected');
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
+  const [localSelectedWarnings, setLocalSelectedWarnings] = useState<MarketWarningType[]>(selectedWarnings);
+  const [localShowWarningOnly, setLocalShowWarningOnly] = useState(showWarningOnly);
   const [toast, setToast] = useState<{
     open: boolean;
     message: string;
@@ -295,6 +313,48 @@ const InterestMarkets: React.FC = () => {
     return tickers[marketCode];
   };
 
+  // 시장경보 필터링 함수
+  const filterMarketsByWarning = (marketList: InterestMarket[]) => {
+    if (!localSelectedWarnings || localSelectedWarnings.length === 0) {
+      return marketList;
+    }
+
+    return marketList.filter(market => {
+      const ticker = tickers[market.market];
+      if (!ticker || !ticker.market_warning) {
+        return false;
+      }
+
+      // 선택된 경보 타입에 해당하는지 확인
+      return localSelectedWarnings.includes(ticker.market_warning as MarketWarningType);
+    });
+  };
+
+  // 주의종목만 보기 필터링 함수
+  const filterWarningOnly = (marketList: InterestMarket[]) => {
+    if (!localShowWarningOnly) {
+      return marketList;
+    }
+
+    return marketList.filter(market => {
+      const ticker = tickers[market.market];
+      return ticker && ticker.market_warning;
+    });
+  };
+
+  // 최종 필터링된 관심종목 목록
+  const getFilteredInterestMarkets = () => {
+    let filteredMarkets = interestMarkets;
+    
+    // 시장경보 필터 적용
+    filteredMarkets = filterMarketsByWarning(filteredMarkets);
+    
+    // 주의종목만 보기 필터 적용
+    filteredMarkets = filterWarningOnly(filteredMarkets);
+    
+    return filteredMarkets;
+  };
+
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('ko-KR').format(price);
   };
@@ -362,6 +422,38 @@ const InterestMarkets: React.FC = () => {
     navigate(`/orderbook/${marketCode}`);
   };
 
+  // 시장경보 타입에 따른 라벨 반환
+  const getWarningLabel = (warningType: string) => {
+    const warningLabels: Record<string, string> = {
+      'PRICE_FLUCTUATIONS': '가격 급등락',
+      'TRADING_VOLUME_SOARING': '거래량 급등',
+      'DEPOSIT_AMOUNT_SOARING': '입금량 급등',
+      'GLOBAL_PRICE_DIFFERENCES': '가격 차이',
+      'CONCENTRATION_OF_SMALL_ACCOUNTS': '소수 계정 집중'
+    };
+    return warningLabels[warningType] || warningType;
+  };
+
+  // 시장경보 타입 옵션
+  const warningTypeOptions: { value: MarketWarningType; label: string }[] = [
+    { value: 'PRICE_FLUCTUATIONS', label: '가격 급등락' },
+    { value: 'TRADING_VOLUME_SOARING', label: '거래량 급등' },
+    { value: 'DEPOSIT_AMOUNT_SOARING', label: '입금량 급등' },
+    { value: 'GLOBAL_PRICE_DIFFERENCES', label: '가격 차이' },
+    { value: 'CONCENTRATION_OF_SMALL_ACCOUNTS', label: '소수 계정 집중' }
+  ];
+
+  // 시장경보 필터 변경 핸들러
+  const handleWarningChange = (event: any) => {
+    const value = event.target.value;
+    setLocalSelectedWarnings(value);
+  };
+
+  // 주의종목만 보기 토글 핸들러
+  const handleShowWarningOnlyToggle = () => {
+    setLocalShowWarningOnly(!localShowWarningOnly);
+  };
+
   if (loading) {
     return (
       <Box>
@@ -420,6 +512,50 @@ const InterestMarkets: React.FC = () => {
             </Typography>
           </Box>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            {/* 시장경보 필터 */}
+            <FormControl size="small" sx={{ minWidth: 200 }}>
+              <Select
+                multiple
+                value={localSelectedWarnings}
+                onChange={handleWarningChange}
+                input={<OutlinedInput />}
+                renderValue={(selected) => (
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                    <FilterListIcon fontSize="small" />
+                    {selected.length > 0 ? (
+                      <Chip 
+                        label={`${selected.length}개 선택`} 
+                        size="small" 
+                        color="warning"
+                      />
+                    ) : (
+                      <Typography variant="body2" color="text.secondary">
+                        경보 필터
+                      </Typography>
+                    )}
+                  </Box>
+                )}
+                displayEmpty
+              >
+                {warningTypeOptions.map((option) => (
+                  <MenuItem key={option.value} value={option.value}>
+                    <Checkbox checked={localSelectedWarnings.indexOf(option.value) > -1} />
+                    <ListItemText primary={option.label} />
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+
+            {/* 주의종목만 보기 토글 */}
+            <Chip
+              icon={<WarningIcon />}
+              label="주의종목만"
+              color={localShowWarningOnly ? 'error' : 'default'}
+              variant={localShowWarningOnly ? 'filled' : 'outlined'}
+              onClick={handleShowWarningOnlyToggle}
+              sx={{ cursor: 'pointer' }}
+            />
+
             <Chip
               icon={getConnectionIcon()}
               label={getConnectionText()}
@@ -452,7 +588,7 @@ const InterestMarkets: React.FC = () => {
             minWidth: '240px'
           }
         }}>
-          {interestMarkets.map((market, index) => {
+          {getFilteredInterestMarkets().map((market, index) => {
             const ticker = getTickerByMarket(market.market);
             if (!ticker) return null;
 
@@ -498,6 +634,16 @@ const InterestMarkets: React.FC = () => {
                             }}
                           >
                             {market.market}
+                            {/* 시장경보 표시 */}
+                            {ticker.market_warning && (
+                              <Chip
+                                icon={<WarningIcon />}
+                                label={getWarningLabel(ticker.market_warning)}
+                                color="warning"
+                                size="small"
+                                sx={{ mt: 0.5, fontSize: '0.6rem', height: '20px' }}
+                              />
+                            )}
                           </Typography>
                         </Box>
                         <Box sx={{ display: 'flex', gap: 1, flexShrink: 0 }}>

@@ -33,6 +33,7 @@ interface OrderBookData {
 
 interface OrderBookComponentProps {
   market: string;
+  refreshKey?: number;
 }
 
 const StyledTableCell = styled(TableCell)(({ theme }) => ({
@@ -54,7 +55,7 @@ const SizeCell = styled(TableCell)(({ theme }) => ({
   textAlign: 'right',
 }));
 
-const OrderBookComponent: React.FC<OrderBookComponentProps> = ({ market }) => {
+const OrderBookComponent: React.FC<OrderBookComponentProps> = ({ market, refreshKey = 0 }) => {
   const [orderBook, setOrderBook] = useState<OrderBookData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -93,7 +94,7 @@ const OrderBookComponent: React.FC<OrderBookComponentProps> = ({ market }) => {
     };
 
     loadOrderBook();
-  }, [market]);
+  }, [market, refreshKey]);
 
   // WebSocket 호가 업데이트 핸들러
   const handleOrderBookUpdate = (updatedOrderBook: any) => {

@@ -10,6 +10,7 @@ export default function InterestPage() {
       <Typography variant="h4" component="h1" gutterBottom>
         관심종목
       </Typography>
+      
       <Grid container spacing={3}>
         <Grid sx={{ width: '100%' }}>
           <Paper sx={{ p: 2 }}>
