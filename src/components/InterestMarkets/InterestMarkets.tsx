@@ -11,7 +11,8 @@ import {
   Alert,
   Skeleton,
   Tooltip,
-  Button
+  Button,
+  Grid
 } from '@mui/material';
 import {
   TrendingUp as TrendingUpIcon,
@@ -30,7 +31,7 @@ import { upbitApi } from '../../services/upbit';
 import { interestService, type InterestMarket } from '../../services/interestService';
 
 const StyledCard = styled(Card)<{ change: string; isDragging: boolean }>(({ theme, change, isDragging }) => ({
-  height: '100%',
+  height: '240px',
   transition: 'all 0.3s ease',
   borderLeft: `4px solid ${
     change === 'RISE' ? theme.palette.success.main :
@@ -43,6 +44,12 @@ const StyledCard = styled(Card)<{ change: string; isDragging: boolean }>(({ them
   '&:hover': {
     transform: isDragging ? 'scale(0.95)' : 'translateY(-4px)',
     boxShadow: theme.shadows[8],
+  },
+  '& .MuiCardContent-root': {
+    height: '100%',
+    display: 'flex',
+    flexDirection: 'column',
+    padding: theme.spacing(2),
   },
 }));
 
@@ -83,7 +90,8 @@ const InterestMarkets: React.FC = () => {
 
     fetchData();
 
-    // WebSocket 이벤트 핸들러 설정
+    // WebSocket 이벤트 핸들러 설정 (비활성화)
+    /*
     upbitWebSocket.onTickerUpdate = handleTickerUpdate;
     upbitWebSocket.onConnect = () => {
       setConnectionStatus('connected');
@@ -97,6 +105,10 @@ const InterestMarkets: React.FC = () => {
       setConnectionStatus('disconnected');
       console.log('관심 종목 WebSocket 오류');
     };
+    */
+
+    // 연결 상태를 disconnected로 설정
+    setConnectionStatus('disconnected');
 
     return () => {
       // 컴포넌트 언마운트 시 이벤트 핸들러 제거
@@ -104,7 +116,7 @@ const InterestMarkets: React.FC = () => {
       upbitWebSocket.onConnect = undefined;
       upbitWebSocket.onDisconnect = undefined;
       upbitWebSocket.onError = undefined;
-      upbitWebSocket.disconnect();
+      // upbitWebSocket.disconnect(); // 연결 해제 비활성화
     };
   }, [handleTickerUpdate]);
 
@@ -127,7 +139,8 @@ const InterestMarkets: React.FC = () => {
         setTickers(tickerMap);
         setLastUpdate(new Date());
 
-        // WebSocket 연결 및 구독
+        // WebSocket 연결 및 구독 (비활성화)
+        /*
         setConnectionStatus('connecting');
         
         // 기존 연결이 있으면 해제
@@ -143,6 +156,7 @@ const InterestMarkets: React.FC = () => {
           console.log('관심 종목 구독 시도:', marketCodesArray);
           upbitWebSocket.subscribeToMarkets(marketCodesArray);
         }, 2000); // 연결 후 2초 뒤 구독
+        */
       } else {
         // 관심 종목이 없으면 연결 상태만 설정
         setConnectionStatus('disconnected');
@@ -253,23 +267,31 @@ const InterestMarkets: React.FC = () => {
     return (
       <Box>
         <Box sx={{ mb: 3 }}>
-          <Typography variant="h4" gutterBottom>
-            관심 종목
-          </Typography>
           <LinearProgress />
         </Box>
-        <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 3 }}>
+        <Grid container spacing={2} sx={{ 
+          '& .MuiGrid-item': {
+            minWidth: '240px'
+          }
+        }}>
           {[...Array(6)].map((_, index) => (
-            <Card key={index}>
-              <CardContent>
-                <Skeleton variant="text" width="60%" height={32} />
-                <Skeleton variant="text" width="40%" />
-                <Skeleton variant="text" width="80%" height={24} />
-                <Skeleton variant="text" width="60%" />
-              </CardContent>
-            </Card>
+            <Grid item xs={4} sm={2.4} md={2.4} lg={2.4} xl={2.4} key={index} {...({} as any)}>
+              <Box sx={{ height: '240px', width: '100%', minWidth: '240px' }}>
+                <Card sx={{ height: '100%', width: '100%' }}>
+                  <CardContent sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+                    <Skeleton variant="text" width="60%" height={24} />
+                    <Skeleton variant="text" width="40%" height={16} />
+                    <Skeleton variant="text" width="80%" height={32} />
+                    <Skeleton variant="text" width="60%" height={16} />
+                    <Box sx={{ mt: 'auto' }}>
+                      <Skeleton variant="text" width="50%" height={12} />
+                    </Box>
+                  </CardContent>
+                </Card>
+              </Box>
+            </Grid>
           ))}
-        </Box>
+        </Grid>
       </Box>
     );
   }
@@ -287,9 +309,6 @@ const InterestMarkets: React.FC = () => {
       {/* 헤더 */}
       <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
         <Box>
-          <Typography variant="h4" gutterBottom>
-            관심 종목
-          </Typography>
           <Typography variant="body2" color="text.secondary">
             실시간 관심 종목 정보
           </Typography>
@@ -322,84 +341,117 @@ const InterestMarkets: React.FC = () => {
       </Box>
 
       {/* 관심 종목 카드 그리드 */}
-      <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 3 }}>
+      <Grid container spacing={2} sx={{ 
+        '& .MuiGrid-item': {
+          minWidth: '240px'
+        }
+      }}>
         {interestMarkets.map((market, index) => {
           const ticker = getTickerByMarket(market.market);
           if (!ticker) return null;
 
           return (
-            <StyledCard 
-              key={market.market} 
-              change={ticker.change}
-              isDragging={draggedIndex === index}
-              draggable
-              onDragStart={(e) => handleDragStart(e, index)}
-              onDragOver={handleDragOver}
-              onDrop={(e) => handleDrop(e, index)}
-              onDragEnd={handleDragEnd}
-            >
-              <CardContent>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
-                  <Box>
-                    <Typography variant="h6" component="div" gutterBottom>
-                      {market.korean_name}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      {market.market}
-                    </Typography>
-                  </Box>
-                  <Box sx={{ display: 'flex', gap: 1 }}>
-                    <Tooltip title="드래그하여 순서 변경">
-                      <IconButton size="small" sx={{ cursor: 'grab' }}>
-                        <DragIndicatorIcon fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
-                    <Tooltip title="관심 종목에서 삭제">
-                      <IconButton
-                        size="small"
-                        onClick={() => handleRemoveInterest(market.market)}
-                        sx={{ color: 'error.main' }}
-                      >
-                        <DeleteIcon fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
-                  </Box>
-                </Box>
+            <Grid item xs={4} sm={2.4} md={2.4} lg={2.4} xl={2.4} key={market.market} {...({} as any)}>
+              <Box sx={{ height: '240px', width: '100%', minWidth: '240px' }}>
+                <StyledCard 
+                  change={ticker.change}
+                  isDragging={draggedIndex === index}
+                  draggable
+                  onDragStart={(e) => handleDragStart(e, index)}
+                  onDragOver={handleDragOver}
+                  onDrop={(e) => handleDrop(e, index)}
+                  onDragEnd={handleDragEnd}
+                  sx={{ height: '100%', width: '100%' }}
+                >
+                  <CardContent>
+                    {/* 헤더 영역 */}
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2, flexShrink: 0 }}>
+                      <Box sx={{ minWidth: 0, flex: 1 }}>
+                        <Typography 
+                          variant="h6" 
+                          component="div" 
+                          gutterBottom
+                          sx={{ 
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                            fontSize: '1rem'
+                          }}
+                        >
+                          {market.korean_name}
+                        </Typography>
+                        <Typography 
+                          variant="body2" 
+                          color="text.secondary"
+                          sx={{ 
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                            fontSize: '0.75rem'
+                          }}
+                        >
+                          {market.market}
+                        </Typography>
+                      </Box>
+                      <Box sx={{ display: 'flex', gap: 1, flexShrink: 0 }}>
+                        <Tooltip title="드래그하여 순서 변경">
+                          <IconButton size="small" sx={{ cursor: 'grab' }}>
+                            <DragIndicatorIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="관심 종목에서 삭제">
+                          <IconButton
+                            size="small"
+                            onClick={() => handleRemoveInterest(market.market)}
+                            sx={{ color: 'error.main' }}
+                          >
+                            <DeleteIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      </Box>
+                    </Box>
 
-                <Box sx={{ mb: 2 }}>
-                  <PriceTypography variant="h5" change={ticker.change}>
-                    ₩{formatPrice(ticker.trade_price)}
-                  </PriceTypography>
-                </Box>
+                    {/* 가격 영역 */}
+                    <Box sx={{ mb: 2, flexShrink: 0 }}>
+                      <PriceTypography variant="h5" change={ticker.change} sx={{ fontSize: '1.25rem' }}>
+                        ₩{formatPrice(ticker.trade_price)}
+                      </PriceTypography>
+                    </Box>
 
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                    {ticker.change === 'RISE' ? (
-                      <TrendingUpIcon color="success" fontSize="small" />
-                    ) : ticker.change === 'FALL' ? (
-                      <TrendingDownIcon color="error" fontSize="small" />
-                    ) : (
-                      <RemoveIcon color="action" fontSize="small" />
-                    )}
-                    <ChangeTypography variant="body2" change={ticker.change}>
-                      {ticker.change === 'RISE' ? '+' : ticker.change === 'FALL' ? '-' : ''}
-                      {(ticker.change_rate * 100).toFixed(2)}%
-                    </ChangeTypography>
-                  </Box>
-                  <ChangeTypography variant="body2" change={ticker.change}>
-                    {ticker.change === 'RISE' ? '+' : ticker.change === 'FALL' ? '-' : ''}
-                    ₩{formatPrice(ticker.change_price)}
-                  </ChangeTypography>
-                </Box>
+                    {/* 변동률 및 변동가격 영역 */}
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1, flexShrink: 0 }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                        {ticker.change === 'RISE' ? (
+                          <TrendingUpIcon color="success" fontSize="small" />
+                        ) : ticker.change === 'FALL' ? (
+                          <TrendingDownIcon color="error" fontSize="small" />
+                        ) : (
+                          <RemoveIcon color="action" fontSize="small" />
+                        )}
+                        <ChangeTypography variant="body2" change={ticker.change} sx={{ fontSize: '0.75rem' }}>
+                          {ticker.change === 'RISE' ? '+' : ticker.change === 'FALL' ? '-' : ''}
+                          {(ticker.change_rate * 100).toFixed(2)}%
+                        </ChangeTypography>
+                      </Box>
+                      <ChangeTypography variant="body2" change={ticker.change} sx={{ fontSize: '0.75rem' }}>
+                        {ticker.change === 'RISE' ? '+' : ticker.change === 'FALL' ? '-' : ''}
+                        ₩{formatPrice(ticker.change_price)}
+                      </ChangeTypography>
+                    </Box>
 
-                <Typography variant="caption" color="text.secondary">
-                  거래량: {formatVolume(ticker.trade_volume)}
-                </Typography>
-              </CardContent>
-            </StyledCard>
+                    {/* 거래량 영역 - 하단에 고정 */}
+                    <Box sx={{ mt: 'auto', flexShrink: 0 }}>
+                      <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>
+                        거래량: {formatVolume(ticker.trade_volume)}
+                      </Typography>
+                    </Box>
+                  </CardContent>
+                </StyledCard>
+              </Box>
+            </Grid>
           );
         })}
-      </Box>
+      </Grid>
 
       {interestMarkets.length === 0 && (
         <Paper sx={{ p: 4, textAlign: 'center' }}>

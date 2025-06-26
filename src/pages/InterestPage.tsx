@@ -18,10 +18,6 @@ export default function InterestPage() {
           </Typography>
           <Grid container spacing={3}>
             {/* @ts-ignore */}
-            <Grid item xs={12} md={4} lg={3}>
-              <InterestWidget />
-            </Grid>
-            {/* @ts-ignore */}
             <Grid item xs={12} md={8} lg={9}>
               <Paper sx={{ p: 2, height: '600px' }}>
                 <InterestMarkets />
