@@ -29,12 +29,12 @@ import {
   Refresh as RefreshIcon
 } from '@mui/icons-material';
 import { styled } from '@mui/material/styles';
+import { useNavigate } from 'react-router-dom';
 import { upbitWebSocket, type UpbitTicker } from '../../services/upbitWebSocket';
 import { upbitApi } from '../../services/upbit';
 import { interestService, type InterestMarket } from '../../services/interestService';
 import { getUpbitSettings } from '../../utils/upbitSettings';
 import Toast from '../Toast/Toast';
-import { useNavigate } from 'react-router-dom';
 
 const StyledCard = styled(Card, {
   shouldForwardProp: (prop) => prop !== 'isDragging' && prop !== 'change'
@@ -79,7 +79,6 @@ const ChangeTypography = styled(Typography, {
 }));
 
 const InterestMarkets: React.FC = () => {
-  const navigate = useNavigate();
   const [interestMarkets, setInterestMarkets] = useState<InterestMarket[]>([]);
   const [tickers, setTickers] = useState<{ [key: string]: UpbitTicker }>({});
   const [loading, setLoading] = useState(true);
@@ -100,6 +99,8 @@ const InterestMarkets: React.FC = () => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const isTablet = useMediaQuery(theme.breakpoints.down('md'));
+
+  const navigate = useNavigate();
 
   // WebSocket 티커 업데이트 핸들러
   const handleTickerUpdate = useCallback((ticker: UpbitTicker) => {
@@ -570,7 +571,7 @@ const InterestMarkets: React.FC = () => {
                           variant="outlined"
                           size="small"
                           color="secondary"
-                          onClick={() => console.log('호가:', market.market)}
+                          onClick={() => handleCurrentPriceClick(market.market)}
                           sx={{ 
                             flex: 1, 
                             fontSize: '0.7rem', 

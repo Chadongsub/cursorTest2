@@ -1,7 +1,7 @@
 import React from 'react';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
-import { createBrowserRouter, RouterProvider } from 'react-router-dom';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import Dashboard from './pages/Dashboard';
 import MarketPage from './pages/MarketPage';
 import InterestPage from './pages/InterestPage';
@@ -17,38 +17,19 @@ const theme = createTheme({
   shape: { borderRadius: 12 },
 });
 
-const router = createBrowserRouter([
-  {
-    path: "/",
-    element: <Dashboard />,
-  },
-  {
-    path: "/market",
-    element: <MarketPage />,
-  },
-  {
-    path: "/interest",
-    element: <InterestPage />,
-  },
-  {
-    path: "/upbit-settings",
-    element: <UpbitSettingsPage />,
-  },
-  {
-    path: "/current-price/:market",
-    element: <CurrentPricePage />,
-  },
-], {
-  future: {
-    v7_startTransition: true,
-  } as any,
-});
-
 function App() {
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
-      <RouterProvider router={router} />
+      <BrowserRouter>
+        <Routes>
+          <Route path="/" element={<Dashboard />} />
+          <Route path="/market" element={<MarketPage />} />
+          <Route path="/interest" element={<InterestPage />} />
+          <Route path="/upbit-settings" element={<UpbitSettingsPage />} />
+          <Route path="/current-price/:market" element={<CurrentPricePage />} />
+        </Routes>
+      </BrowserRouter>
     </ThemeProvider>
   );
 }

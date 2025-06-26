@@ -190,6 +190,45 @@ class UpbitWebSocketService {
     }
   }
 
+  // 호가 구독
+  subscribeOrderBook(markets: string[]) {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      console.warn('WebSocket이 연결되지 않았습니다. 연결 후 호가 구독합니다.');
+      this.connect();
+      return;
+    }
+
+    // 업비트 WebSocket API 호가 구독 형식
+    const subscribeMessage = [
+      {
+        ticket: `ORDERBOOK_${this.connectionId}`
+      },
+      {
+        type: 'orderbook',
+        codes: markets,
+        isOnlyRealtime: true
+      }
+    ];
+
+    try {
+      console.log('호가 구독 메시지 전송:', subscribeMessage);
+      this.ws.send(JSON.stringify(subscribeMessage));
+      console.log('호가 구독 완료:', markets);
+    } catch (error) {
+      console.error('호가 구독 메시지 전송 실패:', error);
+    }
+  }
+
+  // 호가 구독 해제
+  unsubscribeOrderBook(markets: string[]) {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      return;
+    }
+
+    // 업비트는 개별 해제를 지원하지 않으므로 전체 재구독
+    console.log('호가 구독 해제:', markets);
+  }
+
   // 마켓 구독 해제
   unsubscribeFromMarkets(markets: string[]) {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
@@ -220,7 +259,14 @@ class UpbitWebSocketService {
       // 티커 데이터 이벤트 발생
       this.emitEvent('tickerUpdate', tickerData);
     } else if (data.type === 'orderbook') {
-      console.log('호가 데이터 수신:', data);
+      // code 필드를 market으로 매핑
+      const orderBookData = {
+        ...data,
+        market: data.code // code를 market으로 변환
+      };
+      console.log('호가 데이터 수신:', orderBookData.market);
+      // 호가 데이터 이벤트 발생
+      this.emitEvent('orderBookUpdate', orderBookData);
     } else if (data.type === 'trade') {
       console.log('체결 데이터 수신:', data);
     } else {
@@ -309,6 +355,18 @@ class UpbitWebSocketService {
   set onError(handler: ((error: Event) => void) | undefined) {
     if (handler) {
       this.addEventHandler('error', handler);
+    }
+  }
+
+  // 호가 업데이트 이벤트 핸들러
+  get onOrderBookUpdate() {
+    const handlers = this.eventHandlers.get('orderBookUpdate');
+    return handlers ? Array.from(handlers)[0] as ((orderBook: any) => void) : undefined;
+  }
+
+  set onOrderBookUpdate(handler: ((orderBook: any) => void) | undefined) {
+    if (handler) {
+      this.addEventHandler('orderBookUpdate', handler);
     }
   }
 }

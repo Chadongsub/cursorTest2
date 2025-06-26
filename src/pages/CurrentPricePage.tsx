@@ -27,6 +27,7 @@ import { upbitWebSocket, type UpbitTicker as WebSocketTicker } from '../services
 import { getUpbitSettings } from '../utils/upbitSettings';
 import Toast from '../components/Toast/Toast';
 import PageLayout from '../components/Layout/PageLayout';
+import OrderBookComponent from '../components/OrderBook/OrderBookComponent';
 
 const PriceTypography = styled(Typography, {
   shouldForwardProp: (prop) => prop !== 'change'
@@ -291,6 +292,10 @@ const CurrentPricePage: React.FC = () => {
     }
   };
 
+  const handleBackClick = () => {
+    navigate(-1);
+  };
+
   if (loading) {
     return (
       <PageLayout>
@@ -323,7 +328,7 @@ const CurrentPricePage: React.FC = () => {
       <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
           <Tooltip title="뒤로 가기">
-            <IconButton onClick={() => navigate(-1)} color="primary">
+            <IconButton onClick={handleBackClick} color="primary">
               <ArrowBackIcon />
             </IconButton>
           </Tooltip>
@@ -481,6 +486,13 @@ const CurrentPricePage: React.FC = () => {
                 </Card>
               </Grid>
             </Grid>
+          </Paper>
+        </Grid>
+
+        {/* 호가 정보 카드 */}
+        <Grid sx={{ width: '100%' }}>
+          <Paper sx={{ p: 3 }}>
+            <OrderBookComponent market={market || ''} />
           </Paper>
         </Grid>
       </Grid>

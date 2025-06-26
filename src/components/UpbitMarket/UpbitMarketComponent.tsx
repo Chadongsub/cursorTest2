@@ -29,12 +29,12 @@ import {
   WifiTethering as WifiTetheringIcon
 } from '@mui/icons-material';
 import { styled } from '@mui/material/styles';
+import { useNavigate } from 'react-router-dom';
 import { upbitApi, type UpbitMarket } from '../../services/upbit';
 import { upbitWebSocket, type UpbitTicker } from '../../services/upbitWebSocket';
 import { interestService, type InterestMarket } from '../../services/interestService';
 import { loadUpbitSettings, getUpbitSettings } from '../../utils/upbitSettings';
 import Toast from '../Toast/Toast';
-import { useNavigate } from 'react-router-dom';
 
 const StyledCard = styled(Card, {
   shouldForwardProp: (prop) => prop !== 'change'
@@ -76,7 +76,6 @@ const ChangeTypography = styled(Typography, {
 }));
 
 const UpbitMarketComponent: React.FC = () => {
-  const navigate = useNavigate();
   const [markets, setMarkets] = useState<UpbitMarket[]>([]);
   const [tickers, setTickers] = useState<{ [key: string]: UpbitTicker }>({});
   const [loading, setLoading] = useState(true);
@@ -98,6 +97,8 @@ const UpbitMarketComponent: React.FC = () => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const isTablet = useMediaQuery(theme.breakpoints.down('md'));
+
+  const navigate = useNavigate();
 
   // WebSocket 티커 업데이트 핸들러
   const handleTickerUpdate = useCallback((ticker: UpbitTicker) => {
@@ -540,7 +541,7 @@ const UpbitMarketComponent: React.FC = () => {
                             variant="outlined"
                             size="small"
                             color="secondary"
-                            onClick={() => console.log('호가:', market.market)}
+                            onClick={() => handleCurrentPriceClick(market.market)}
                             sx={{ 
                               flex: 1, 
                               fontSize: '0.7rem', 
