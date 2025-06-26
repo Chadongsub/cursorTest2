@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  Box, 
-  Container, 
+  Box,
   Typography, 
   Paper, 
   Grid, 
@@ -27,6 +26,7 @@ import { upbitApi, type UpbitTicker } from '../services/upbit';
 import { upbitWebSocket, type UpbitTicker as WebSocketTicker } from '../services/upbitWebSocket';
 import { getUpbitSettings } from '../utils/upbitSettings';
 import Toast from '../components/Toast/Toast';
+import PageLayout from '../components/Layout/PageLayout';
 
 const PriceTypography = styled(Typography, {
   shouldForwardProp: (prop) => prop !== 'change'
@@ -45,6 +45,24 @@ const ChangeTypography = styled(Typography, {
          theme.palette.text.secondary,
 }));
 
+const AnimatedPriceTypography = styled(PriceTypography, {
+  shouldForwardProp: (prop) => prop !== 'animation'
+})<{ animation: 'up' | 'down' | 'none' }>(({ animation }) => ({
+  transition: 'all 0.3s ease-in-out',
+  ...(animation === 'up' && {
+    transform: 'scale(1.05)',
+    backgroundColor: 'rgba(76, 175, 80, 0.1)',
+    borderRadius: '4px',
+    padding: '4px 8px',
+  }),
+  ...(animation === 'down' && {
+    transform: 'scale(1.05)',
+    backgroundColor: 'rgba(244, 67, 54, 0.1)',
+    borderRadius: '4px',
+    padding: '4px 8px',
+  }),
+}));
+
 const CurrentPricePage: React.FC = () => {
   const { market } = useParams<{ market: string }>();
   const navigate = useNavigate();
@@ -53,6 +71,7 @@ const CurrentPricePage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected' | 'connecting'>('disconnected');
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
+  const [priceAnimation, setPriceAnimation] = useState<'up' | 'down' | 'none'>('none');
   const [toast, setToast] = useState<{
     open: boolean;
     message: string;
@@ -125,6 +144,20 @@ const CurrentPricePage: React.FC = () => {
   // WebSocket 티커 업데이트 핸들러
   const handleTickerUpdate = (updatedTicker: WebSocketTicker) => {
     if (updatedTicker.market === market) {
+      // 이전 가격과 비교하여 애니메이션 설정
+      if (ticker) {
+        if (updatedTicker.trade_price > ticker.trade_price) {
+          setPriceAnimation('up');
+        } else if (updatedTicker.trade_price < ticker.trade_price) {
+          setPriceAnimation('down');
+        }
+        
+        // 애니메이션 효과 제거
+        setTimeout(() => {
+          setPriceAnimation('none');
+        }, 1000);
+      }
+
       // WebSocket 티커를 API 티커 형식으로 변환
       const convertedTicker: UpbitTicker = {
         market: updatedTicker.market,
@@ -175,11 +208,29 @@ const CurrentPricePage: React.FC = () => {
     const { useSocket } = settings;
 
     if (useSocket && market) {
+      // 초기 연결 상태 설정
+      const currentState = upbitWebSocket.getConnectionState();
+      if (currentState === 'connecting') {
+        setConnectionStatus('connecting');
+      } else if (currentState === 'connected') {
+        setConnectionStatus('connected');
+        // 이미 연결된 상태라면 해당 마켓 구독
+        upbitWebSocket.subscribeToMarkets([market]);
+      } else {
+        setConnectionStatus('disconnected');
+        // 연결되지 않은 상태라면 연결 시도
+        upbitWebSocket.connect();
+      }
+
       // WebSocket 이벤트 핸들러 설정
       upbitWebSocket.onTickerUpdate = handleTickerUpdate;
       upbitWebSocket.onConnect = () => {
         setConnectionStatus('connected');
         showToast('실시간 데이터 연결됨', 'success');
+        // 연결 후 해당 마켓 구독
+        if (market) {
+          upbitWebSocket.subscribeToMarkets([market]);
+        }
       };
       upbitWebSocket.onDisconnect = () => {
         setConnectionStatus('disconnected');
@@ -195,6 +246,12 @@ const CurrentPricePage: React.FC = () => {
         const currentState = upbitWebSocket.getConnectionState();
         if (currentState === 'connected' && connectionStatus !== 'connected') {
           setConnectionStatus('connected');
+          // 연결 상태가 변경되면 해당 마켓 구독
+          if (market) {
+            upbitWebSocket.subscribeToMarkets([market]);
+          }
+        } else if (currentState === 'connecting' && connectionStatus !== 'connecting') {
+          setConnectionStatus('connecting');
         } else if (currentState === 'disconnected' && connectionStatus !== 'disconnected') {
           setConnectionStatus('disconnected');
         }
@@ -202,6 +259,10 @@ const CurrentPricePage: React.FC = () => {
 
       return () => {
         clearInterval(connectionCheckInterval);
+        // 컴포넌트 언마운트 시 해당 마켓 구독 해제
+        if (market) {
+          upbitWebSocket.unsubscribeFromMarkets([market]);
+        }
         upbitWebSocket.onTickerUpdate = undefined;
         upbitWebSocket.onConnect = undefined;
         upbitWebSocket.onDisconnect = undefined;
@@ -232,25 +293,25 @@ const CurrentPricePage: React.FC = () => {
 
   if (loading) {
     return (
-      <Box sx={{ p: 2 }}>
+      <PageLayout>
         <LinearProgress />
         <Typography variant="h6" sx={{ mt: 2 }}>데이터를 불러오는 중...</Typography>
-      </Box>
+      </PageLayout>
     );
   }
 
   if (error || !ticker) {
     return (
-      <Box sx={{ p: 2 }}>
+      <PageLayout>
         <Alert severity="error" sx={{ mb: 2 }}>
           {error || '데이터를 찾을 수 없습니다.'}
         </Alert>
-      </Box>
+      </PageLayout>
     );
   }
 
   return (
-    <Box sx={{ p: 2 }}>
+    <PageLayout>
       <Toast
         open={toast.open}
         message={toast.message}
@@ -307,9 +368,9 @@ const CurrentPricePage: React.FC = () => {
             </Typography>
             <Divider sx={{ mb: 2 }} />
             <Box sx={{ textAlign: 'center', mb: 3 }}>
-              <PriceTypography variant="h3" change={ticker.change} sx={{ mb: 1 }}>
+              <AnimatedPriceTypography variant="h3" change={ticker.change} animation={priceAnimation} sx={{ mb: 1 }}>
                 ₩{formatPrice(ticker.trade_price)}
-              </PriceTypography>
+              </AnimatedPriceTypography>
               <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 1 }}>
                 {ticker.change === 'RISE' ? (
                   <TrendingUpIcon color="success" />
@@ -423,7 +484,7 @@ const CurrentPricePage: React.FC = () => {
           </Paper>
         </Grid>
       </Grid>
-    </Box>
+    </PageLayout>
   );
 };
 

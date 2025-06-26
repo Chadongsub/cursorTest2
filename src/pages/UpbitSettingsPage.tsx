@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Box, Container, Typography, Paper, Switch, FormControlLabel, TextField, Button, Toolbar } from '@mui/material';
-import Sidebar from '../components/Sidebar';
-import Topbar from '../components/Topbar';
+import { Box, Typography, Paper, Switch, FormControlLabel, TextField, Button } from '@mui/material';
+import PageLayout from '../components/Layout/PageLayout';
 import Toast from '../components/Toast/Toast';
 import { loadUpbitSettings, saveUpbitSettings } from '../utils/upbitSettings';
 
@@ -51,40 +50,33 @@ export default function UpbitSettingsPage() {
   };
 
   return (
-    <Box sx={{ display: 'flex' }}>
-      <Sidebar />
-      <Box component="main" sx={{ flexGrow: 1, bgcolor: 'background.default', minHeight: '100vh' }}>
-        <Topbar />
-        <Toolbar />
-        <Container maxWidth="sm" sx={{ mt: 6 }}>
-          <Toast
-            open={toast.open}
-            message={toast.message}
-            severity={toast.severity}
-            onClose={handleCloseToast}
+    <PageLayout>
+      <Toast
+        open={toast.open}
+        message={toast.message}
+        severity={toast.severity}
+        onClose={handleCloseToast}
+      />
+      <Paper sx={{ p: 4, maxWidth: 'sm', mx: 'auto' }}>
+        <Typography variant="h5" gutterBottom>업비트 설정</Typography>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+          <FormControlLabel
+            control={<Switch checked={useSocket} onChange={e => setUseSocket(e.target.checked)} color="primary" />}
+            label="실시간 소켓 통신 사용"
           />
-          <Paper sx={{ p: 4 }}>
-            <Typography variant="h5" gutterBottom>업비트 설정</Typography>
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-              <FormControlLabel
-                control={<Switch checked={useSocket} onChange={e => setUseSocket(e.target.checked)} color="primary" />}
-                label="실시간 소켓 통신 사용"
-              />
-              <TextField
-                label="API 요청 주기 (ms)"
-                type="number"
-                value={apiInterval}
-                onChange={e => setApiInterval(Number(e.target.value))}
-                InputProps={{ inputProps: { min: 500, step: 100 } }}
-                fullWidth
-              />
-              <Button variant="contained" color="primary" onClick={handleSave}>
-                저장
-              </Button>
-            </Box>
-          </Paper>
-        </Container>
-      </Box>
-    </Box>
+          <TextField
+            label="API 요청 주기 (ms)"
+            type="number"
+            value={apiInterval}
+            onChange={e => setApiInterval(Number(e.target.value))}
+            InputProps={{ inputProps: { min: 500, step: 100 } }}
+            fullWidth
+          />
+          <Button variant="contained" color="primary" onClick={handleSave}>
+            저장
+          </Button>
+        </Box>
+      </Paper>
+    </PageLayout>
   );
 } 
