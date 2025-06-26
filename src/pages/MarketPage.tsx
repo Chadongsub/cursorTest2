@@ -16,8 +16,7 @@ export default function MarketPage() {
             마켓현황
           </Typography>
           <Grid container spacing={3}>
-            {/* @ts-ignore */}
-            <Grid item xs={12}>
+            <Grid sx={{ width: '100%' }}>
               <Paper sx={{ p: 2 }}>
                 <UpbitMarketComponent />
               </Paper>

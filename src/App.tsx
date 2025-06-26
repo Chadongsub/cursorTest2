@@ -6,6 +6,7 @@ import Dashboard from './pages/Dashboard';
 import MarketPage from './pages/MarketPage';
 import InterestPage from './pages/InterestPage';
 import UpbitSettingsPage from './pages/UpbitSettingsPage';
+import CurrentPricePage from './pages/CurrentPricePage';
 
 const theme = createTheme({
   palette: {
@@ -26,6 +27,7 @@ function App() {
           <Route path="/market" element={<MarketPage />} />
           <Route path="/interest" element={<InterestPage />} />
           <Route path="/upbit-settings" element={<UpbitSettingsPage />} />
+          <Route path="/current-price/:market" element={<CurrentPricePage />} />
         </Routes>
       </Router>
     </ThemeProvider>

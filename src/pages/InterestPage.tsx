@@ -17,9 +17,8 @@ export default function InterestPage() {
             관심종목
           </Typography>
           <Grid container spacing={3}>
-            {/* @ts-ignore */}
-            <Grid item xs={12} md={8} lg={9}>
-              <Paper sx={{ p: 2, height: '600px' }}>
+            <Grid sx={{ width: '100%' }}>
+              <Paper sx={{ p: 2 }}>
                 <InterestMarkets />
               </Paper>
             </Grid>

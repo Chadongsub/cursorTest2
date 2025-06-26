@@ -13,7 +13,9 @@ import {
   Tooltip,
   Button,
   Grid,
-  Divider
+  Divider,
+  useTheme,
+  useMediaQuery
 } from '@mui/material';
 import {
   TrendingUp as TrendingUpIcon,
@@ -30,8 +32,13 @@ import { styled } from '@mui/material/styles';
 import { upbitWebSocket, type UpbitTicker } from '../../services/upbitWebSocket';
 import { upbitApi } from '../../services/upbit';
 import { interestService, type InterestMarket } from '../../services/interestService';
+import { getUpbitSettings } from '../../utils/upbitSettings';
+import Toast from '../Toast/Toast';
+import { useNavigate } from 'react-router-dom';
 
-const StyledCard = styled(Card)<{ change: string; isDragging: boolean }>(({ theme, change, isDragging }) => ({
+const StyledCard = styled(Card, {
+  shouldForwardProp: (prop) => prop !== 'isDragging' && prop !== 'change'
+})<{ change: string; isDragging: boolean }>(({ theme, change, isDragging }) => ({
   height: '240px',
   transition: 'all 0.3s ease',
   borderLeft: `4px solid ${
@@ -54,34 +61,53 @@ const StyledCard = styled(Card)<{ change: string; isDragging: boolean }>(({ them
   },
 }));
 
-const PriceTypography = styled(Typography)<{ change: string }>(({ theme, change }) => ({
+const PriceTypography = styled(Typography, {
+  shouldForwardProp: (prop) => prop !== 'change'
+})<{ change: string }>(({ theme, change }) => ({
   color: change === 'RISE' ? theme.palette.success.main :
          change === 'FALL' ? theme.palette.error.main :
          theme.palette.text.primary,
   fontWeight: 'bold',
 }));
 
-const ChangeTypography = styled(Typography)<{ change: string }>(({ theme, change }) => ({
+const ChangeTypography = styled(Typography, {
+  shouldForwardProp: (prop) => prop !== 'change'
+})<{ change: string }>(({ theme, change }) => ({
   color: change === 'RISE' ? theme.palette.success.main :
          change === 'FALL' ? theme.palette.error.main :
          theme.palette.text.secondary,
 }));
 
 const InterestMarkets: React.FC = () => {
+  const navigate = useNavigate();
   const [interestMarkets, setInterestMarkets] = useState<InterestMarket[]>([]);
-  const [tickers, setTickers] = useState<Map<string, UpbitTicker>>(new Map());
+  const [tickers, setTickers] = useState<{ [key: string]: UpbitTicker }>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
-  const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'disconnected'>('disconnected');
+  const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected' | 'connecting'>('disconnected');
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
+  const [toast, setToast] = useState<{
+    open: boolean;
+    message: string;
+    severity: 'success' | 'error' | 'warning' | 'info';
+  }>({
+    open: false,
+    message: '',
+    severity: 'info'
+  });
+
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const isTablet = useMediaQuery(theme.breakpoints.down('md'));
 
   // WebSocket 티커 업데이트 핸들러
   const handleTickerUpdate = useCallback((ticker: UpbitTicker) => {
-    setTickers(prev => new Map(prev.set(ticker.market, ticker)));
+    setTickers(prev => ({ ...prev, [ticker.market]: ticker }));
     setLastUpdate(new Date());
   }, []);
 
+  // 초기 데이터 로드
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
@@ -90,74 +116,125 @@ const InterestMarkets: React.FC = () => {
     };
 
     fetchData();
+  }, []);
 
-    // WebSocket 이벤트 핸들러 설정 (비활성화)
-    /*
-    upbitWebSocket.onTickerUpdate = handleTickerUpdate;
-    upbitWebSocket.onConnect = () => {
-      setConnectionStatus('connected');
-      console.log('관심 종목 WebSocket 연결됨');
-    };
-    upbitWebSocket.onDisconnect = () => {
+  useEffect(() => {
+    const settings = getUpbitSettings();
+    const { useSocket } = settings;
+
+    if (useSocket) {
+      // WebSocket 이벤트 핸들러 설정
+      upbitWebSocket.onTickerUpdate = handleTickerUpdate;
+      upbitWebSocket.onConnect = () => {
+        setConnectionStatus('connected');
+        showToast('실시간 데이터 연결됨', 'success');
+        console.log('관심종목 WebSocket 연결됨');
+      };
+      upbitWebSocket.onDisconnect = () => {
+        setConnectionStatus('disconnected');
+        showToast('실시간 데이터 연결 끊김', 'warning');
+        console.log('관심종목 WebSocket 연결 끊김');
+      };
+      upbitWebSocket.onError = () => {
+        setConnectionStatus('disconnected');
+        showToast('실시간 데이터 연결 오류', 'error');
+        console.log('관심종목 WebSocket 오류');
+      };
+
+      // 연결 상태 주기적 확인 (5초마다)
+      const connectionCheckInterval = setInterval(() => {
+        const currentState = upbitWebSocket.getConnectionState();
+        if (currentState === 'connected' && connectionStatus !== 'connected') {
+          setConnectionStatus('connected');
+        } else if (currentState === 'disconnected' && connectionStatus !== 'disconnected') {
+          setConnectionStatus('disconnected');
+        }
+      }, 5000);
+
+      return () => {
+        clearInterval(connectionCheckInterval);
+        // 컴포넌트 언마운트 시 이벤트 핸들러 제거
+        upbitWebSocket.onTickerUpdate = undefined;
+        upbitWebSocket.onConnect = undefined;
+        upbitWebSocket.onDisconnect = undefined;
+        upbitWebSocket.onError = undefined;
+        upbitWebSocket.disconnect(); // 연결 해제
+      };
+    } else {
+      // WebSocket 사용 안함일 때 연결 상태를 disconnected로 설정
       setConnectionStatus('disconnected');
-      console.log('관심 종목 WebSocket 연결 끊김');
-    };
-    upbitWebSocket.onError = () => {
-      setConnectionStatus('disconnected');
-      console.log('관심 종목 WebSocket 오류');
-    };
-    */
-
-    // 연결 상태를 disconnected로 설정
-    setConnectionStatus('disconnected');
-
-    return () => {
-      // 컴포넌트 언마운트 시 이벤트 핸들러 제거
-      upbitWebSocket.onTickerUpdate = undefined;
-      upbitWebSocket.onConnect = undefined;
-      upbitWebSocket.onDisconnect = undefined;
-      upbitWebSocket.onError = undefined;
-      // upbitWebSocket.disconnect(); // 연결 해제 비활성화
-    };
+      // 기존 연결이 있으면 해제
+      if (upbitWebSocket.isConnected()) {
+        upbitWebSocket.disconnect();
+      }
+    }
   }, [handleTickerUpdate]);
 
   const loadInterestMarkets = async () => {
     try {
-      // 관심 종목 서비스를 통해 로드 (로컬 스토리지 우선)
-      const allMarkets = await interestService.getInterestMarkets();
-      setInterestMarkets(allMarkets);
+      const list = await interestService.getInterestMarkets();
+      setInterestMarkets(list);
 
-      // 초기 티커 데이터 로드 (REST API)
-      if (allMarkets.length > 0) {
-        const marketCodes = allMarkets.map(market => market.market).join(',');
+      if (list.length > 0) {
+        // 관심 종목들의 티커 데이터 로드
+        const allMarkets = list.map(item => item.market);
+        const marketCodes = allMarkets.join(',');
         const initialTickers = await upbitApi.getTicker(marketCodes);
         
-        // 초기 데이터를 Map으로 변환
-        const tickerMap = new Map();
+        // 초기 데이터를 객체로 변환
+        const tickerMap: { [key: string]: UpbitTicker } = {};
         initialTickers.forEach(ticker => {
-          tickerMap.set(ticker.market, ticker);
+          tickerMap[ticker.market] = {
+            market: ticker.market,
+            trade_date: ticker.trade_date,
+            trade_time: ticker.trade_time,
+            trade_price: ticker.trade_price,
+            trade_volume: ticker.trade_volume,
+            prev_closing_price: ticker.prev_closing_price,
+            change: ticker.change as 'RISE' | 'FALL' | 'EVEN',
+            change_price: ticker.change_price,
+            change_rate: ticker.change_rate,
+            signed_change_price: ticker.change_price,
+            signed_change_rate: ticker.change_rate,
+            trade_timestamp: Date.now(),
+            acc_trade_volume_24h: ticker.acc_trade_volume_24h,
+            acc_trade_price_24h: ticker.acc_trade_price_24h,
+            acc_trade_volume: ticker.acc_trade_volume_24h,
+            acc_trade_price: ticker.acc_trade_price_24h,
+            acc_ask_volume: 0,
+            acc_bid_volume: 0,
+            highest_52_week_price: 0,
+            highest_52_week_date: '',
+            lowest_52_week_price: 0,
+            lowest_52_week_date: '',
+            market_warning: ''
+          };
         });
         setTickers(tickerMap);
         setLastUpdate(new Date());
 
-        // WebSocket 연결 및 구독 (비활성화)
-        /*
-        setConnectionStatus('connecting');
-        
-        // 기존 연결이 있으면 해제
-        if (upbitWebSocket.isConnected()) {
-          upbitWebSocket.disconnect();
+        // useSocket 설정에 따라 WebSocket 연결
+        const settings = getUpbitSettings();
+        if (settings.useSocket) {
+          // WebSocket 연결 및 구독
+          setConnectionStatus('connecting');
+          
+          // 기존 연결이 있으면 해제
+          if (upbitWebSocket.isConnected()) {
+            upbitWebSocket.disconnect();
+          }
+          
+          upbitWebSocket.connect();
+          
+          // 관심 종목 마켓 구독
+          const marketCodesArray = allMarkets;
+          setTimeout(() => {
+            console.log('관심 종목 구독 시도:', marketCodesArray);
+            upbitWebSocket.subscribeToMarkets(marketCodesArray);
+          }, 2000); // 연결 후 2초 뒤 구독
+        } else {
+          setConnectionStatus('disconnected');
         }
-        
-        upbitWebSocket.connect();
-        
-        // 관심 종목 마켓 구독
-        const marketCodesArray = allMarkets.map(market => market.market);
-        setTimeout(() => {
-          console.log('관심 종목 구독 시도:', marketCodesArray);
-          upbitWebSocket.subscribeToMarkets(marketCodesArray);
-        }, 2000); // 연결 후 2초 뒤 구독
-        */
       } else {
         // 관심 종목이 없으면 연결 상태만 설정
         setConnectionStatus('disconnected');
@@ -214,7 +291,7 @@ const InterestMarkets: React.FC = () => {
   };
 
   const getTickerByMarket = (marketCode: string) => {
-    return tickers.get(marketCode);
+    return tickers[marketCode];
   };
 
   const formatPrice = (price: number) => {
@@ -264,6 +341,22 @@ const InterestMarkets: React.FC = () => {
     }
   };
 
+  const showToast = (message: string, severity: 'success' | 'error' | 'warning' | 'info' = 'info') => {
+    setToast({
+      open: true,
+      message,
+      severity
+    });
+  };
+
+  const handleCloseToast = () => {
+    setToast(prev => ({ ...prev, open: false }));
+  };
+
+  const handleCurrentPriceClick = (marketCode: string) => {
+    navigate(`/current-price/${marketCode}`);
+  };
+
   if (loading) {
     return (
       <Box>
@@ -276,8 +369,8 @@ const InterestMarkets: React.FC = () => {
           }
         }}>
           {[...Array(6)].map((_, index) => (
-            <Grid item xs={4} sm={2.4} md={2.4} lg={2.4} xl={2.4} key={index} {...({} as any)}>
-              <Box sx={{ height: '240px', width: '100%', minWidth: '240px' }}>
+            <Grid key={index} sx={{ width: { xs: '100%', sm: '20%', md: '20%', lg: '20%', xl: '20%' } }}>
+              <Box sx={{ height: '280px', width: '100%', minWidth: '240px' }}>
                 <Card sx={{ height: '100%', width: '100%' }}>
                   <CardContent sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
                     <Skeleton variant="text" width="60%" height={24} />
@@ -306,166 +399,207 @@ const InterestMarkets: React.FC = () => {
   }
 
   return (
-    <Box>
-      {/* 헤더 */}
-      <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
-        <Box>
-          <Typography variant="body2" color="text.secondary">
-            실시간 관심 종목 정보
-          </Typography>
-        </Box>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-          <Chip
-            icon={getConnectionIcon()}
-            label={getConnectionText()}
-            color={connectionStatus === 'connected' ? 'success' : connectionStatus === 'connecting' ? 'warning' : 'error'}
-            variant="outlined"
-          />
-          {lastUpdate && (
+    <Box sx={{ p: 2 }}>
+      <Toast
+        open={toast.open}
+        message={toast.message}
+        severity={toast.severity}
+        onClose={handleCloseToast}
+      />
+      <Box>
+        {/* 헤더 */}
+        <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
+          <Box>
+            <Typography variant="body2" color="text.secondary">
+              실시간 관심 종목 정보
+            </Typography>
+          </Box>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
             <Chip
-              label={`마지막 업데이트: ${formatLastUpdate(lastUpdate)}`}
+              icon={getConnectionIcon()}
+              label={getConnectionText()}
+              color={connectionStatus === 'connected' ? 'success' : connectionStatus === 'connecting' ? 'warning' : 'error'}
+              variant="outlined"
+            />
+            {lastUpdate && (
+              <Chip
+                label={`마지막 업데이트: ${formatLastUpdate(lastUpdate)}`}
+                variant="outlined"
+                size="small"
+              />
+            )}
+            <Chip
+              label={`관심 종목 수: ${interestMarkets.length}개`}
               variant="outlined"
               size="small"
             />
-          )}
-          <Chip
-            label={`관심 종목 수: ${interestMarkets.length}개`}
-            variant="outlined"
-            size="small"
-          />
-          <Tooltip title="새로고침">
-            <IconButton onClick={loadInterestMarkets} color="primary">
-              <RefreshIcon />
-            </IconButton>
-          </Tooltip>
+            <Tooltip title="새로고침">
+              <IconButton onClick={loadInterestMarkets} color="primary">
+                <RefreshIcon />
+              </IconButton>
+            </Tooltip>
+          </Box>
         </Box>
-      </Box>
 
-      {/* 관심 종목 카드 그리드 */}
-      <Grid container spacing={2} sx={{ 
-        '& .MuiGrid-item': {
-          minWidth: '240px'
-        }
-      }}>
-        {interestMarkets.map((market, index) => {
-          const ticker = getTickerByMarket(market.market);
-          if (!ticker) return null;
+        {/* 관심 종목 카드 그리드 */}
+        <Grid container spacing={2} sx={{ 
+          '& .MuiGrid-item': {
+            minWidth: '240px'
+          }
+        }}>
+          {interestMarkets.map((market, index) => {
+            const ticker = getTickerByMarket(market.market);
+            if (!ticker) return null;
 
-          return (
-            <Grid item xs={4} sm={2.4} md={2.4} lg={2.4} xl={2.4} key={market.market} {...({} as any)}>
-              <Box sx={{ height: '240px', width: '100%', minWidth: '240px' }}>
-                <StyledCard 
-                  change={ticker.change}
-                  isDragging={draggedIndex === index}
-                  draggable
-                  onDragStart={(e) => handleDragStart(e, index)}
-                  onDragOver={handleDragOver}
-                  onDrop={(e) => handleDrop(e, index)}
-                  onDragEnd={handleDragEnd}
-                  sx={{ height: '100%', width: '100%' }}
-                >
-                  <CardContent>
-                    {/* 헤더 영역 */}
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2, flexShrink: 0 }}>
-                      <Box sx={{ minWidth: 0, flex: 1 }}>
-                        <Typography 
-                          variant="h6" 
-                          component="div" 
-                          gutterBottom
-                          sx={{ 
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap',
-                            fontSize: '1rem'
-                          }}
-                        >
-                          {market.korean_name}
-                        </Typography>
-                        <Typography 
-                          variant="body2" 
-                          color="text.secondary"
-                          sx={{ 
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap',
-                            fontSize: '0.75rem'
-                          }}
-                        >
-                          {market.market}
-                        </Typography>
-                      </Box>
-                      <Box sx={{ display: 'flex', gap: 1, flexShrink: 0 }}>
-                        <Tooltip title="드래그하여 순서 변경">
-                          <IconButton size="small" sx={{ cursor: 'grab' }}>
-                            <DragIndicatorIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                        <Tooltip title="관심 종목 해제">
-                          <Button
-                            variant="contained"
-                            size="small"
-                            color="secondary"
-                            onClick={() => handleRemoveInterest(market.market)}
-                            sx={{ minWidth: 0, px: 1, py: 0.5, fontSize: '0.75rem', flexShrink: 0 }}
+            return (
+              <Grid key={market.market} sx={{ width: { xs: '100%', sm: '20%', md: '20%', lg: '20%', xl: '20%' } }}>
+                <Box sx={{ height: '280px', width: '100%', minWidth: '240px' }}>
+                  <StyledCard 
+                    change={ticker.change}
+                    isDragging={draggedIndex === index}
+                    draggable
+                    onDragStart={(e) => handleDragStart(e, index)}
+                    onDragOver={handleDragOver}
+                    onDrop={(e) => handleDrop(e, index)}
+                    onDragEnd={handleDragEnd}
+                    sx={{ height: '100%', width: '100%' }}
+                  >
+                    <CardContent sx={{ height: '100%', display: 'flex', flexDirection: 'column', p: 2 }}>
+                      {/* 헤더 영역 */}
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1, flexShrink: 0 }}>
+                        <Box sx={{ minWidth: 0, flex: 1 }}>
+                          <Typography 
+                            variant="h6" 
+                            component="div" 
+                            gutterBottom
+                            sx={{ 
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                              fontSize: '1rem',
+                              mb: 0.5
+                            }}
                           >
-                            해제
-                          </Button>
-                        </Tooltip>
+                            {market.korean_name}
+                          </Typography>
+                          <Typography 
+                            variant="body2" 
+                            color="text.secondary"
+                            sx={{ 
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                              fontSize: '0.75rem'
+                            }}
+                          >
+                            {market.market}
+                          </Typography>
+                        </Box>
+                        <Box sx={{ display: 'flex', gap: 1, flexShrink: 0 }}>
+                          <Tooltip title="드래그하여 순서 변경">
+                            <IconButton size="small" sx={{ cursor: 'grab' }}>
+                              <DragIndicatorIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title="관심 종목 해제">
+                            <Button
+                              variant="contained"
+                              size="small"
+                              color="secondary"
+                              onClick={() => handleRemoveInterest(market.market)}
+                              sx={{ minWidth: 0, px: 1, py: 0.5, fontSize: '0.75rem', flexShrink: 0 }}
+                            >
+                              해제
+                            </Button>
+                          </Tooltip>
+                        </Box>
                       </Box>
-                    </Box>
-                    <Divider sx={{ my: 1 }} />
-                    {/* 가격 영역 */}
-                    <Box sx={{ mb: 2, flexShrink: 0 }}>
-                      <PriceTypography variant="h5" change={ticker.change} sx={{ fontSize: '1.25rem' }}>
-                        ₩{formatPrice(ticker.trade_price)}
-                      </PriceTypography>
-                    </Box>
-                    <Divider sx={{ my: 1 }} />
-                    {/* 변동률 및 변동가격 영역 */}
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1, flexShrink: 0 }}>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                        {ticker.change === 'RISE' ? (
-                          <TrendingUpIcon color="success" fontSize="small" />
-                        ) : ticker.change === 'FALL' ? (
-                          <TrendingDownIcon color="error" fontSize="small" />
-                        ) : (
-                          <RemoveIcon color="action" fontSize="small" />
-                        )}
+                      <Divider sx={{ my: 1 }} />
+                      {/* 가격 영역 */}
+                      <Box sx={{ mb: 1, flexShrink: 0 }}>
+                        <PriceTypography variant="h5" change={ticker.change} sx={{ fontSize: '1.25rem' }}>
+                          ₩{formatPrice(ticker.trade_price)}
+                        </PriceTypography>
+                      </Box>
+                      <Divider sx={{ my: 1 }} />
+                      {/* 변동률 및 변동가격 영역 */}
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1, flexShrink: 0 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                          {ticker.change === 'RISE' ? (
+                            <TrendingUpIcon color="success" fontSize="small" />
+                          ) : ticker.change === 'FALL' ? (
+                            <TrendingDownIcon color="error" fontSize="small" />
+                          ) : (
+                            <RemoveIcon color="action" fontSize="small" />
+                          )}
+                          <ChangeTypography variant="body2" change={ticker.change} sx={{ fontSize: '0.75rem' }}>
+                            {ticker.change === 'RISE' ? '+' : ticker.change === 'FALL' ? '-' : ''}
+                            {(ticker.change_rate * 100).toFixed(2)}%
+                          </ChangeTypography>
+                        </Box>
                         <ChangeTypography variant="body2" change={ticker.change} sx={{ fontSize: '0.75rem' }}>
                           {ticker.change === 'RISE' ? '+' : ticker.change === 'FALL' ? '-' : ''}
-                          {(ticker.change_rate * 100).toFixed(2)}%
+                          ₩{formatPrice(ticker.change_price)}
                         </ChangeTypography>
                       </Box>
-                      <ChangeTypography variant="body2" change={ticker.change} sx={{ fontSize: '0.75rem' }}>
-                        {ticker.change === 'RISE' ? '+' : ticker.change === 'FALL' ? '-' : ''}
-                        ₩{formatPrice(ticker.change_price)}
-                      </ChangeTypography>
-                    </Box>
-                    <Divider sx={{ my: 1 }} />
-                    {/* 거래량 영역 - 하단에 고정 */}
-                    <Box sx={{ mt: 'auto', flexShrink: 0 }}>
-                      <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>
-                        거래량: {formatVolume(ticker.trade_volume)}
-                      </Typography>
-                    </Box>
-                  </CardContent>
-                </StyledCard>
-              </Box>
-            </Grid>
-          );
-        })}
-      </Grid>
+                      <Divider sx={{ my: 1 }} />
+                      {/* 거래량 영역 */}
+                      <Box sx={{ mb: 1, flexShrink: 0 }}>
+                        <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>
+                          거래량: {formatVolume(ticker.trade_volume)}
+                        </Typography>
+                      </Box>
+                      <Divider sx={{ my: 1 }} />
+                      {/* 상세 정보 버튼 영역 */}
+                      <Box sx={{ display: 'flex', gap: 1, mt: 'auto', flexShrink: 0 }}>
+                        <Button
+                          variant="outlined"
+                          size="small"
+                          color="primary"
+                          onClick={() => handleCurrentPriceClick(market.market)}
+                          sx={{ 
+                            flex: 1, 
+                            fontSize: '0.7rem', 
+                            py: 0.5,
+                            minHeight: '28px'
+                          }}
+                        >
+                          현재가
+                        </Button>
+                        <Button
+                          variant="outlined"
+                          size="small"
+                          color="secondary"
+                          onClick={() => console.log('호가:', market.market)}
+                          sx={{ 
+                            flex: 1, 
+                            fontSize: '0.7rem', 
+                            py: 0.5,
+                            minHeight: '28px'
+                          }}
+                        >
+                          호가
+                        </Button>
+                      </Box>
+                    </CardContent>
+                  </StyledCard>
+                </Box>
+              </Grid>
+            );
+          })}
+        </Grid>
 
-      {interestMarkets.length === 0 && (
-        <Paper sx={{ p: 4, textAlign: 'center' }}>
-          <Typography variant="h6" color="text.secondary" gutterBottom>
-            관심 종목이 없습니다
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            마켓 현황에서 관심 종목을 추가해보세요.
-          </Typography>
-        </Paper>
-      )}
+        {interestMarkets.length === 0 && (
+          <Paper sx={{ p: 4, textAlign: 'center' }}>
+            <Typography variant="h6" color="text.secondary" gutterBottom>
+              관심 종목이 없습니다
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              마켓 현황에서 관심 종목을 추가해보세요.
+            </Typography>
+          </Paper>
+        )}
+      </Box>
     </Box>
   );
 };

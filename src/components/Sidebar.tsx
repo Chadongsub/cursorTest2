@@ -4,33 +4,27 @@ import {
   Drawer,
   List,
   ListItem,
-  ListItemIcon,
   ListItemText,
   ListItemButton,
   Toolbar,
   Divider,
   Typography,
   Box,
-  Stack
+  Collapse
 } from '@mui/material';
-import DashboardIcon from '@mui/icons-material/Dashboard';
-import TrendingUpIcon from '@mui/icons-material/TrendingUp';
-import FavoriteIcon from '@mui/icons-material/Favorite';
-import SettingsIcon from '@mui/icons-material/Settings';
-import InfoIcon from '@mui/icons-material/Info';
+import ExpandLess from '@mui/icons-material/ExpandLess';
+import ExpandMore from '@mui/icons-material/ExpandMore';
 
 const drawerWidth = 240;
 
 const mainMenu = [
-  { text: 'Dashboard', icon: <DashboardIcon />, path: '/' },
-  { text: '마켓현황', icon: <TrendingUpIcon />, path: '/market' },
-  { text: '관심종목', icon: <FavoriteIcon />, path: '/interest' },
+  { text: '대시보드', path: '/' },
+  { text: '마켓현황', path: '/market' },
+  { text: '관심종목', path: '/interest' },
 ];
 
 const subMenu = [
-  { text: '설정', icon: <SettingsIcon />, path: '/settings' },
-  { text: '정보', icon: <InfoIcon />, path: '/info' },
-  { text: '업비트 설정', icon: <SettingsIcon />, path: '/upbit-settings' },
+  { text: '업비트 설정', path: '/upbit-settings' }
 ];
 
 export default function Sidebar() {
@@ -38,13 +32,18 @@ export default function Sidebar() {
   const location = useLocation();
   const [selected, setSelected] = useState(() => {
     const currentPath = location.pathname;
-    const menuItem = [...mainMenu, ...subMenu].find(item => item.path === currentPath);
-    return menuItem ? menuItem.text : 'Dashboard';
+    const menuItem = mainMenu.find(item => item.path === currentPath);
+    return menuItem ? menuItem.text : '대시보드';
   });
+  const [open, setOpen] = useState(true);
 
   const handleMenuClick = (text: string, path: string) => {
     setSelected(text);
     navigate(path);
+  };
+
+  const handleCollapse = () => {
+    setOpen(prev => !prev);
   };
 
   return (
@@ -70,40 +69,39 @@ export default function Sidebar() {
         </Typography>
       </Box>
       <Divider />
-      <List sx={{ flexGrow: 1 }}>
-        {mainMenu.map((item) => (
-          <ListItem disablePadding key={item.text}>
-            <ListItemButton
-              selected={selected === item.text}
-              onClick={() => handleMenuClick(item.text, item.path)}
-              sx={{
-                mx: 1,
-                borderRadius: 2,
-                color: 'text.primary',
-                '& .MuiListItemIcon-root': {
-                  color: 'text.secondary',
-                },
-                '&.Mui-selected': {
-                  backgroundColor: 'action.selected',
-                  color: 'primary.main',
-                  '& .MuiListItemIcon-root': {
-                    color: 'primary.main',
-                  },
-                },
-                '&:hover': {
-                  backgroundColor: 'action.hover',
-                },
-              }}
-            >
-              <ListItemIcon>{item.icon}</ListItemIcon>
-              <ListItemText primary={item.text} />
-            </ListItemButton>
-          </ListItem>
-        ))}
-      </List>
-      <Box sx={{ flexGrow: 1 }} />
-      <Divider />
       <List>
+        <ListItemButton onClick={handleCollapse} sx={{ borderRadius: 2 }}>
+          <ListItemText primary="기본정보" />
+          {open ? <ExpandLess /> : <ExpandMore />}
+        </ListItemButton>
+        <Collapse in={open} timeout="auto" unmountOnExit>
+          <List component="div" disablePadding>
+            {mainMenu.map((item) => (
+              <ListItem disablePadding key={item.text}>
+                <ListItemButton
+                  selected={selected === item.text}
+                  onClick={() => handleMenuClick(item.text, item.path)}
+                  sx={{
+                    mx: 1,
+                    borderRadius: 2,
+                    color: 'text.primary',
+                    pl: 4,
+                    '&.Mui-selected': {
+                      backgroundColor: 'action.selected',
+                      color: 'primary.main',
+                    },
+                    '&:hover': {
+                      backgroundColor: 'action.hover',
+                    },
+                  }}
+                >
+                  <ListItemText primary={item.text} />
+                </ListItemButton>
+              </ListItem>
+            ))}
+          </List>
+        </Collapse>
+        <Divider sx={{ my: 2 }} />
         {subMenu.map((item) => (
           <ListItem disablePadding key={item.text}>
             <ListItemButton
@@ -112,28 +110,24 @@ export default function Sidebar() {
               sx={{
                 mx: 1,
                 borderRadius: 2,
-                color: 'text.secondary',
-                '& .MuiListItemIcon-root': {
-                  color: 'text.disabled',
-                },
+                color: 'text.primary',
+                pl: 2,
                 '&.Mui-selected': {
                   backgroundColor: 'action.selected',
                   color: 'primary.main',
-                  '& .MuiListItemIcon-root': {
-                    color: 'primary.main',
-                  },
                 },
                 '&:hover': {
                   backgroundColor: 'action.hover',
                 },
               }}
             >
-              <ListItemIcon>{item.icon}</ListItemIcon>
               <ListItemText primary={item.text} />
             </ListItemButton>
           </ListItem>
         ))}
       </List>
+      <Box sx={{ flexGrow: 1 }} />
+      <Divider />
     </Drawer>
   );
 } 
