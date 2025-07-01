@@ -21,7 +21,8 @@ import {
   Dashboard as DashboardIcon,
   TrendingUp as TrendingUpIcon,
   Favorite as FavoriteIcon,
-  Settings as SettingsIcon
+  Settings as SettingsIcon,
+  Psychology as PsychologyIcon
 } from '@mui/icons-material';
 import { Link } from 'react-router-dom';
 
@@ -34,7 +35,8 @@ const mainMenu = [
 ];
 
 const subMenu = [
-  { text: '업비트 설정', icon: <SettingsIcon />, path: '/upbit-settings' }
+  { text: '업비트 설정', icon: <SettingsIcon />, path: '/upbit-settings' },
+  { text: '트레이딩 알고리즘', icon: <PsychologyIcon />, path: '/trading' }
 ];
 
 const Sidebar: React.FC = () => {

@@ -6,6 +6,7 @@ import Dashboard from './pages/Dashboard';
 import MarketPage from './pages/MarketPage';
 import InterestPage from './pages/InterestPage';
 import UpbitSettingsPage from './pages/UpbitSettingsPage';
+import TradingPage from './pages/TradingPage';
 import CurrentPricePage from './pages/CurrentPricePage';
 import OrderBookPage from './pages/OrderBookPage';
 
@@ -114,6 +115,7 @@ function App() {
           <Route path="/market" element={<MarketPage />} />
           <Route path="/interest" element={<InterestPage />} />
           <Route path="/upbit-settings" element={<UpbitSettingsPage />} />
+          <Route path="/trading" element={<TradingPage />} />
           <Route path="/current-price/:market" element={<CurrentPricePage />} />
           <Route path="/orderbook/:market" element={<OrderBookPage />} />
         </Routes>
