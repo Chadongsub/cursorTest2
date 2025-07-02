@@ -237,4 +237,128 @@ export class TradingIndicators {
       confidence
     };
   }
+
+  /**
+   * 볼린저 밴드 계산
+   */
+  static calculateBollingerBands(data: number[], period: number = 20, stdDev: number = 2) {
+    const sma = this.calculateSMA(data, period);
+    const upperBand: number[] = [];
+    const lowerBand: number[] = [];
+    
+    for (let i = 0; i < data.length; i++) {
+      if (i < period - 1) {
+        upperBand.push(NaN);
+        lowerBand.push(NaN);
+        continue;
+      }
+      
+      // 표준편차 계산
+      const slice = data.slice(i - period + 1, i + 1);
+      const mean = sma[i];
+      const variance = slice.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / period;
+      const standardDeviation = Math.sqrt(variance);
+      
+      upperBand.push(mean + (stdDev * standardDeviation));
+      lowerBand.push(mean - (stdDev * standardDeviation));
+    }
+    
+    return { sma, upperBand, lowerBand };
+  }
+
+  /**
+   * 볼린저 밴드 신호 생성
+   */
+  static generateBollingerSignal(prices: number[], period: number = 20, stdDev: number = 2): IndicatorResult {
+    const bands = this.calculateBollingerBands(prices, period, stdDev);
+    
+    if (prices.length === 0 || isNaN(bands.upperBand[bands.upperBand.length - 1])) {
+      return { value: 0, signal: 'hold', strength: 0 };
+    }
+    
+    const currentPrice = prices[prices.length - 1];
+    const upperBand = bands.upperBand[bands.upperBand.length - 1];
+    const lowerBand = bands.lowerBand[bands.lowerBand.length - 1];
+    const middleBand = bands.sma[bands.sma.length - 1];
+    
+    // 밴드폭 계산
+    const bandWidth = (upperBand - lowerBand) / middleBand;
+    
+    let signal: 'buy' | 'sell' | 'hold' = 'hold';
+    let strength = 0;
+    
+    if (currentPrice <= lowerBand) {
+      signal = 'buy';
+      strength = Math.min((lowerBand - currentPrice) / lowerBand * 10, 1);
+    } else if (currentPrice >= upperBand) {
+      signal = 'sell';
+      strength = Math.min((currentPrice - upperBand) / upperBand * 10, 1);
+    }
+    
+    return { value: currentPrice, signal, strength };
+  }
+
+  /**
+   * 스토캐스틱 계산
+   */
+  static calculateStochastic(high: number[], low: number[], close: number[], kPeriod: number = 14, dPeriod: number = 3) {
+    const kLine: number[] = [];
+    const dLine: number[] = [];
+    
+    for (let i = kPeriod - 1; i < close.length; i++) {
+      const highestHigh = Math.max(...high.slice(i - kPeriod + 1, i + 1));
+      const lowestLow = Math.min(...low.slice(i - kPeriod + 1, i + 1));
+      const currentClose = close[i];
+      
+      const k = ((currentClose - lowestLow) / (highestHigh - lowestLow)) * 100;
+      kLine.push(k);
+    }
+    
+    // %D 라인 계산 (K의 이동평균)
+    for (let i = dPeriod - 1; i < kLine.length; i++) {
+      const d = kLine.slice(i - dPeriod + 1, i + 1).reduce((sum, val) => sum + val, 0) / dPeriod;
+      dLine.push(d);
+    }
+    
+    return { kLine, dLine };
+  }
+
+  /**
+   * 스토캐스틱 신호 생성
+   */
+  static generateStochasticSignal(high: number[], low: number[], close: number[], kPeriod: number = 14, dPeriod: number = 3): IndicatorResult {
+    const stoch = this.calculateStochastic(high, low, close, kPeriod, dPeriod);
+    
+    if (stoch.kLine.length === 0 || stoch.dLine.length === 0) {
+      return { value: 0, signal: 'hold', strength: 0 };
+    }
+    
+    const currentK = stoch.kLine[stoch.kLine.length - 1];
+    const currentD = stoch.dLine[stoch.dLine.length - 1];
+    const previousK = stoch.kLine[stoch.kLine.length - 2] || currentK;
+    const previousD = stoch.dLine[stoch.dLine.length - 2] || currentD;
+    
+    let signal: 'buy' | 'sell' | 'hold' = 'hold';
+    let strength = 0;
+    
+    // 과매수/과매도 구간 확인
+    if (currentK <= 20 && currentD <= 20) {
+      signal = 'buy';
+      strength = (20 - Math.min(currentK, currentD)) / 20;
+    } else if (currentK >= 80 && currentD >= 80) {
+      signal = 'sell';
+      strength = (Math.max(currentK, currentD) - 80) / 20;
+    }
+    
+    // 크로스오버 확인
+    if (previousK <= previousD && currentK > currentD && currentK < 50) {
+      signal = 'buy';
+      strength = Math.max(strength, 0.5);
+    } else if (previousK >= previousD && currentK < currentD && currentK > 50) {
+      signal = 'sell';
+      strength = Math.max(strength, 0.5);
+    }
+    
+    return { value: currentK, signal, strength };
+  }
 } 

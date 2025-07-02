@@ -58,7 +58,7 @@ const TradingSettings: React.FC<TradingSettingsProps> = ({
     setLocalMarkets(selectedMarkets);
   }, [config, selectedMarkets]);
 
-  const handleConfigChange = (key: keyof TradingConfig, value: number) => {
+  const handleConfigChange = (key: keyof TradingConfig, value: number | string) => {
     setLocalConfig(prev => ({
       ...prev,
       [key]: value
@@ -99,11 +99,16 @@ const TradingSettings: React.FC<TradingSettingsProps> = ({
 
   const handleReset = () => {
     const defaultConfig: TradingConfig = {
+      algorithmType: 'ma_rsi',
       shortPeriod: 5,
       longPeriod: 20,
       rsiPeriod: 14,
       rsiOverbought: 70,
       rsiOversold: 30,
+      bollingerPeriod: 20,
+      bollingerStdDev: 2,
+      stochasticKPeriod: 14,
+      stochasticDPeriod: 3,
       minConfidence: 0.3
     };
     const defaultMarkets = ['KRW-BTC', 'KRW-ETH', 'KRW-XRP'];
@@ -188,80 +193,179 @@ const TradingSettings: React.FC<TradingSettingsProps> = ({
 
         <Divider sx={{ my: 2 }} />
 
+        {/* 알고리즘 선택 */}
         <Box sx={{ mb: 3 }}>
           <Typography variant="subtitle1" fontWeight="medium" mb={2}>
-            이동평균 설정
+            알고리즘 선택
           </Typography>
           
-          <Box display="flex" gap={2} mb={2}>
-            <TextField
-              label="단기 이동평균"
-              type="number"
-              value={localConfig.shortPeriod}
-              onChange={(e) => handleConfigChange('shortPeriod', Number(e.target.value))}
-              inputProps={{ min: 1, max: 50 }}
-              fullWidth
-              size="small"
-            />
-            <TextField
-              label="장기 이동평균"
-              type="number"
-              value={localConfig.longPeriod}
-              onChange={(e) => handleConfigChange('longPeriod', Number(e.target.value))}
-              inputProps={{ min: 5, max: 200 }}
-              fullWidth
-              size="small"
-            />
-          </Box>
+          <FormControl fullWidth size="small" sx={{ mb: 2 }}>
+            <InputLabel>알고리즘 타입</InputLabel>
+            <Select
+              value={localConfig.algorithmType}
+              onChange={(e) => handleConfigChange('algorithmType', e.target.value)}
+              label="알고리즘 타입"
+            >
+              <MenuItem value="ma_rsi">이동평균 + RSI</MenuItem>
+              <MenuItem value="bollinger">볼린저 밴드</MenuItem>
+              <MenuItem value="stochastic">스토캐스틱</MenuItem>
+            </Select>
+          </FormControl>
           
           <Alert severity="info" sx={{ mb: 2 }}>
-            단기 이동평균이 장기 이동평균을 상향/하향 돌파할 때 신호가 생성됩니다.
+            {localConfig.algorithmType === 'ma_rsi' ? '이동평균 크로스오버와 RSI를 조합한 전략입니다.' :
+             localConfig.algorithmType === 'bollinger' ? '볼린저 밴드의 상단/하단 터치를 이용한 평균회귀 전략입니다.' :
+             '스토캐스틱의 과매수/과매도 구간을 이용한 전략입니다.'}
           </Alert>
         </Box>
 
         <Divider sx={{ my: 2 }} />
 
-        <Box sx={{ mb: 3 }}>
-          <Typography variant="subtitle1" fontWeight="medium" mb={2}>
-            RSI 설정
-          </Typography>
-          
-          <TextField
-            label="RSI 기간"
-            type="number"
-            value={localConfig.rsiPeriod}
-            onChange={(e) => handleConfigChange('rsiPeriod', Number(e.target.value))}
-            inputProps={{ min: 5, max: 50 }}
-            fullWidth
-            size="small"
-            sx={{ mb: 2 }}
-          />
-          
-          <Box display="flex" gap={2} mb={2}>
-            <TextField
-              label="과매수 기준"
-              type="number"
-              value={localConfig.rsiOverbought}
-              onChange={(e) => handleConfigChange('rsiOverbought', Number(e.target.value))}
-              inputProps={{ min: 60, max: 90 }}
-              fullWidth
-              size="small"
-            />
-            <TextField
-              label="과매도 기준"
-              type="number"
-              value={localConfig.rsiOversold}
-              onChange={(e) => handleConfigChange('rsiOversold', Number(e.target.value))}
-              inputProps={{ min: 10, max: 40 }}
-              fullWidth
-              size="small"
-            />
+        {/* 알고리즘별 설정 */}
+        {localConfig.algorithmType === 'ma_rsi' && (
+          <>
+            <Box sx={{ mb: 3 }}>
+              <Typography variant="subtitle1" fontWeight="medium" mb={2}>
+                이동평균 설정
+              </Typography>
+            
+              <Box display="flex" gap={2} mb={2}>
+                <TextField
+                  label="단기 이동평균"
+                  type="number"
+                  value={localConfig.shortPeriod}
+                  onChange={(e) => handleConfigChange('shortPeriod', Number(e.target.value))}
+                  inputProps={{ min: 1, max: 50 }}
+                  fullWidth
+                  size="small"
+                />
+                <TextField
+                  label="장기 이동평균"
+                  type="number"
+                  value={localConfig.longPeriod}
+                  onChange={(e) => handleConfigChange('longPeriod', Number(e.target.value))}
+                  inputProps={{ min: 5, max: 200 }}
+                  fullWidth
+                  size="small"
+                />
+              </Box>
+              
+              <Alert severity="info" sx={{ mb: 2 }}>
+                단기 이동평균이 장기 이동평균을 상향/하향 돌파할 때 신호가 생성됩니다.
+              </Alert>
+            </Box>
+
+            <Divider sx={{ my: 2 }} />
+
+            <Box sx={{ mb: 3 }}>
+              <Typography variant="subtitle1" fontWeight="medium" mb={2}>
+                RSI 설정
+              </Typography>
+              
+              <TextField
+                label="RSI 기간"
+                type="number"
+                value={localConfig.rsiPeriod}
+                onChange={(e) => handleConfigChange('rsiPeriod', Number(e.target.value))}
+                inputProps={{ min: 5, max: 50 }}
+                fullWidth
+                size="small"
+                sx={{ mb: 2 }}
+              />
+              
+              <Box display="flex" gap={2} mb={2}>
+                <TextField
+                  label="과매수 기준"
+                  type="number"
+                  value={localConfig.rsiOverbought}
+                  onChange={(e) => handleConfigChange('rsiOverbought', Number(e.target.value))}
+                  inputProps={{ min: 60, max: 90 }}
+                  fullWidth
+                  size="small"
+                />
+                <TextField
+                  label="과매도 기준"
+                  type="number"
+                  value={localConfig.rsiOversold}
+                  onChange={(e) => handleConfigChange('rsiOversold', Number(e.target.value))}
+                  inputProps={{ min: 10, max: 40 }}
+                  fullWidth
+                  size="small"
+                />
+              </Box>
+              
+              <Alert severity="info" sx={{ mb: 2 }}>
+                RSI가 과매수/과매도 구간에 도달하면 매도/매수 신호가 생성됩니다.
+              </Alert>
+            </Box>
+          </>
+        )}
+
+        {localConfig.algorithmType === 'bollinger' && (
+          <Box sx={{ mb: 3 }}>
+            <Typography variant="subtitle1" fontWeight="medium" mb={2}>
+              볼린저 밴드 설정
+            </Typography>
+            
+            <Box display="flex" gap={2} mb={2}>
+              <TextField
+                label="기간"
+                type="number"
+                value={localConfig.bollingerPeriod}
+                onChange={(e) => handleConfigChange('bollingerPeriod', Number(e.target.value))}
+                inputProps={{ min: 5, max: 50 }}
+                fullWidth
+                size="small"
+              />
+              <TextField
+                label="표준편차"
+                type="number"
+                value={localConfig.bollingerStdDev}
+                onChange={(e) => handleConfigChange('bollingerStdDev', Number(e.target.value))}
+                inputProps={{ min: 1, max: 3, step: 0.1 }}
+                fullWidth
+                size="small"
+              />
+            </Box>
+            
+            <Alert severity="info" sx={{ mb: 2 }}>
+              가격이 밴드 상단/하단에 도달하면 매도/매수 신호가 생성됩니다.
+            </Alert>
           </Box>
-          
-          <Alert severity="info" sx={{ mb: 2 }}>
-            RSI가 과매수/과매도 구간에 도달하면 매도/매수 신호가 생성됩니다.
-          </Alert>
-        </Box>
+        )}
+
+        {localConfig.algorithmType === 'stochastic' && (
+          <Box sx={{ mb: 3 }}>
+            <Typography variant="subtitle1" fontWeight="medium" mb={2}>
+              스토캐스틱 설정
+            </Typography>
+            
+            <Box display="flex" gap={2} mb={2}>
+              <TextField
+                label="%K 기간"
+                type="number"
+                value={localConfig.stochasticKPeriod}
+                onChange={(e) => handleConfigChange('stochasticKPeriod', Number(e.target.value))}
+                inputProps={{ min: 5, max: 30 }}
+                fullWidth
+                size="small"
+              />
+              <TextField
+                label="%D 기간"
+                type="number"
+                value={localConfig.stochasticDPeriod}
+                onChange={(e) => handleConfigChange('stochasticDPeriod', Number(e.target.value))}
+                inputProps={{ min: 1, max: 10 }}
+                fullWidth
+                size="small"
+              />
+            </Box>
+            
+            <Alert severity="info" sx={{ mb: 2 }}>
+              스토캐스틱이 과매수/과매도 구간에 도달하면 매도/매수 신호가 생성됩니다.
+            </Alert>
+          </Box>
+        )}
 
         <Divider sx={{ my: 2 }} />
 

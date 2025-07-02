@@ -13,12 +13,19 @@ export interface TradingSignal {
   reason: string;
 }
 
+export type AlgorithmType = 'ma_rsi' | 'bollinger' | 'stochastic' | 'macd' | 'custom';
+
 export interface TradingConfig {
+  algorithmType: AlgorithmType;
   shortPeriod: number;
   longPeriod: number;
   rsiPeriod: number;
   rsiOverbought: number;
   rsiOversold: number;
+  bollingerPeriod: number;
+  bollingerStdDev: number;
+  stochasticKPeriod: number;
+  stochasticDPeriod: number;
   minConfidence: number;
 }
 
@@ -28,11 +35,16 @@ export class TradingAlgorithm {
   private signalHistory: Map<string, TradingSignal[]> = new Map();
 
   constructor(config: TradingConfig = {
+    algorithmType: 'ma_rsi',
     shortPeriod: 5,
     longPeriod: 20,
     rsiPeriod: 14,
     rsiOverbought: 70,
     rsiOversold: 30,
+    bollingerPeriod: 20,
+    bollingerStdDev: 2,
+    stochasticKPeriod: 14,
+    stochasticDPeriod: 3,
     minConfidence: 0.3
   }) {
     this.config = config;
@@ -79,43 +91,122 @@ export class TradingAlgorithm {
       return null;
     }
 
-    // 복합 신호 생성
-    const combinedSignal = TradingIndicators.generateCombinedSignal(
-      prices,
-      this.config.shortPeriod,
-      this.config.longPeriod,
-      this.config.rsiPeriod
-    );
+    let signal: TradingSignal | null = null;
 
-    // 최소 신뢰도 확인
-    if (combinedSignal.confidence < this.config.minConfidence) {
-      return null;
+    // 알고리즘 타입에 따른 신호 생성
+    switch (this.config.algorithmType) {
+      case 'ma_rsi':
+        const combinedSignal = TradingIndicators.generateCombinedSignal(
+          prices,
+          this.config.shortPeriod,
+          this.config.longPeriod,
+          this.config.rsiPeriod
+        );
+        
+        if (combinedSignal.confidence >= this.config.minConfidence) {
+          signal = {
+            timestamp: Date.now(),
+            market,
+            signal: combinedSignal.combinedSignal,
+            confidence: combinedSignal.confidence,
+            price: prices[prices.length - 1],
+            indicators: {
+              maSignal: combinedSignal.maSignal,
+              rsiSignal: combinedSignal.rsiSignal
+            },
+            reason: this.generateReason(combinedSignal)
+          };
+        }
+        break;
+
+      case 'bollinger':
+        const bollingerSignal = TradingIndicators.generateBollingerSignal(
+          prices,
+          this.config.bollingerPeriod,
+          this.config.bollingerStdDev
+        );
+        
+        if (bollingerSignal.strength >= this.config.minConfidence) {
+          signal = {
+            timestamp: Date.now(),
+            market,
+            signal: bollingerSignal.signal,
+            confidence: bollingerSignal.strength,
+            price: prices[prices.length - 1],
+            indicators: {
+              maSignal: bollingerSignal,
+              rsiSignal: bollingerSignal
+            },
+            reason: this.generateBollingerReason(bollingerSignal)
+          };
+        }
+        break;
+
+      case 'stochastic':
+        // 스토캐스틱는 high, low, close 데이터가 필요하므로 임시로 close만 사용
+        const stochasticSignal = TradingIndicators.generateStochasticSignal(
+          prices, // high (임시)
+          prices, // low (임시)
+          prices, // close
+          this.config.stochasticKPeriod,
+          this.config.stochasticDPeriod
+        );
+        
+        if (stochasticSignal.strength >= this.config.minConfidence) {
+          signal = {
+            timestamp: Date.now(),
+            market,
+            signal: stochasticSignal.signal,
+            confidence: stochasticSignal.strength,
+            price: prices[prices.length - 1],
+            indicators: {
+              maSignal: stochasticSignal,
+              rsiSignal: stochasticSignal
+            },
+            reason: this.generateStochasticReason(stochasticSignal)
+          };
+        }
+        break;
+
+      default:
+        // 기본값은 ma_rsi
+        const defaultSignal = TradingIndicators.generateCombinedSignal(
+          prices,
+          this.config.shortPeriod,
+          this.config.longPeriod,
+          this.config.rsiPeriod
+        );
+        
+        if (defaultSignal.confidence >= this.config.minConfidence) {
+          signal = {
+            timestamp: Date.now(),
+            market,
+            signal: defaultSignal.combinedSignal,
+            confidence: defaultSignal.confidence,
+            price: prices[prices.length - 1],
+            indicators: {
+              maSignal: defaultSignal.maSignal,
+              rsiSignal: defaultSignal.rsiSignal
+            },
+            reason: this.generateReason(defaultSignal)
+          };
+        }
+        break;
     }
 
-    const signal: TradingSignal = {
-      timestamp: Date.now(),
-      market,
-      signal: combinedSignal.combinedSignal,
-      confidence: combinedSignal.confidence,
-      price: prices[prices.length - 1],
-      indicators: {
-        maSignal: combinedSignal.maSignal,
-        rsiSignal: combinedSignal.rsiSignal
-      },
-      reason: this.generateReason(combinedSignal)
-    };
-
-    // 신호 히스토리 저장
-    if (!this.signalHistory.has(market)) {
-      this.signalHistory.set(market, []);
-    }
-    
-    const history = this.signalHistory.get(market)!;
-    history.push(signal);
-    
-    // 최근 50개 신호만 유지
-    if (history.length > 50) {
-      history.shift();
+    // 신호가 생성된 경우에만 히스토리에 저장
+    if (signal) {
+      if (!this.signalHistory.has(market)) {
+        this.signalHistory.set(market, []);
+      }
+      
+      const history = this.signalHistory.get(market)!;
+      history.push(signal);
+      
+      // 최근 50개 신호만 유지
+      if (history.length > 50) {
+        history.shift();
+      }
     }
 
     return signal;
@@ -145,6 +236,30 @@ export class TradingAlgorithm {
       }
     }
     
+    return '신호 없음';
+  }
+
+  /**
+   * 볼린저 밴드 신호 이유 생성
+   */
+  private generateBollingerReason(signal: any): string {
+    if (signal.signal === 'buy') {
+      return '볼린저 밴드 하단 터치 (과매도)';
+    } else if (signal.signal === 'sell') {
+      return '볼린저 밴드 상단 터치 (과매수)';
+    }
+    return '신호 없음';
+  }
+
+  /**
+   * 스토캐스틱 신호 이유 생성
+   */
+  private generateStochasticReason(signal: any): string {
+    if (signal.signal === 'buy') {
+      return '스토캐스틱 과매도 구간';
+    } else if (signal.signal === 'sell') {
+      return '스토캐스틱 과매수 구간';
+    }
     return '신호 없음';
   }
 

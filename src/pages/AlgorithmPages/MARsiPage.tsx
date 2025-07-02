@@ -8,29 +8,36 @@ import {
   Chip,
   Alert,
   CircularProgress,
-  Divider
+  Divider,
+  Grid,
+  TextField,
+  Slider,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem
 } from '@mui/material';
 import {
   PlayArrow,
   Stop,
   Refresh,
   TrendingUp,
-  TrendingDown
+  TrendingDown,
+  Settings
 } from '@mui/icons-material';
-import Sidebar from '../components/Sidebar';
-import Topbar from '../components/Topbar';
-import TradingSignals from '../components/TradingSignals/TradingSignals';
-import TradingSettings from '../components/TradingSettings/TradingSettings';
-import { TradingAlgorithm, TradingSignal, TradingConfig } from '../services/tradingAlgorithm';
-import { upbitWebSocket } from '../services/upbitWebSocket';
+import Sidebar from '../../components/Sidebar';
+import Topbar from '../../components/Topbar';
+import TradingSignals from '../../components/TradingSignals/TradingSignals';
+import AlgorithmSettings from '../../components/TradingSettings/AlgorithmSettings';
+import { TradingAlgorithm, TradingSignal, TradingConfig } from '../../services/tradingAlgorithm';
+import { upbitWebSocket } from '../../services/upbitWebSocket';
 
-const TradingPage: React.FC = () => {
+const MARsiPage: React.FC = () => {
   const [algorithm, setAlgorithm] = useState<TradingAlgorithm | null>(null);
   const [signals, setSignals] = useState<TradingSignal[]>([]);
   const [isRunning, setIsRunning] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [markets, setMarkets] = useState<string[]>(['KRW-BTC', 'KRW-ETH', 'KRW-XRP']);
-  const [availableMarkets, setAvailableMarkets] = useState<string[]>([]);
   const [config, setConfig] = useState<TradingConfig>({
     algorithmType: 'ma_rsi',
     shortPeriod: 5,
@@ -51,27 +58,6 @@ const TradingPage: React.FC = () => {
     setAlgorithm(newAlgorithm);
   }, [config]);
 
-  // 마켓 데이터 초기화
-  useEffect(() => {
-    const initMarkets = async () => {
-      try {
-        // 업비트에서 사용 가능한 모든 KRW 마켓 가져오기
-        const marketList = [
-          'KRW-BTC', 'KRW-ETH', 'KRW-XRP', 'KRW-ADA', 'KRW-DOGE', 'KRW-MATIC', 
-          'KRW-DOT', 'KRW-LTC', 'KRW-BCH', 'KRW-LINK', 'KRW-UNI', 'KRW-ATOM',
-          'KRW-SOL', 'KRW-AVAX', 'KRW-TRX', 'KRW-NEAR', 'KRW-ALGO', 'KRW-VET',
-          'KRW-FLOW', 'KRW-AAVE', 'KRW-ICP', 'KRW-FIL', 'KRW-APT', 'KRW-OP',
-          'KRW-ARB', 'KRW-MKR', 'KRW-SNX', 'KRW-COMP', 'KRW-CRV', 'KRW-YFI'
-        ];
-        setAvailableMarkets(marketList);
-      } catch (error) {
-        console.error('마켓 초기화 실패:', error);
-      }
-    };
-    
-    initMarkets();
-  }, []);
-
   // 실시간 데이터 처리
   useEffect(() => {
     if (!algorithm || !isRunning) return;
@@ -80,19 +66,16 @@ const TradingPage: React.FC = () => {
       if (data.type === 'ticker' && data.trade_price) {
         algorithm.addPriceData(data.code, data.trade_price, Date.now());
         
-        // 신호 생성
         const newSignal = algorithm.generateSignal(data.code);
         if (newSignal) {
           setSignals(prev => {
             const combined = [...prev, newSignal];
-            // 최근 100개 신호만 유지
             return combined.slice(-100);
           });
         }
       }
     };
 
-    // WebSocket 연결
     if (isRunning) {
       upbitWebSocket.subscribeToMarkets(markets);
       upbitWebSocket.onTickerUpdate = handleTicker;
@@ -106,7 +89,6 @@ const TradingPage: React.FC = () => {
     };
   }, [algorithm, isRunning, markets]);
 
-  // 알고리즘 시작/중지
   const handleStart = useCallback(() => {
     setIsRunning(true);
   }, []);
@@ -154,8 +136,26 @@ const TradingPage: React.FC = () => {
         
         <Box sx={{ flex: 1, p: 3, overflow: 'auto' }}>
           <Typography variant="h4" component="h1" fontWeight="bold" mb={3}>
-            통합 트레이딩 알고리즘
+            이동평균 + RSI 알고리즘
           </Typography>
+
+          {/* 알고리즘 설명 */}
+          <Card sx={{ mb: 3 }}>
+            <CardContent>
+              <Typography variant="h6" fontWeight="medium" mb={2}>
+                알고리즘 설명
+              </Typography>
+              <Typography variant="body2" color="text.secondary" mb={2}>
+                이동평균 크로스오버와 RSI(상대강도지수)를 조합한 전략입니다.
+              </Typography>
+              <Box display="flex" gap={2} flexWrap="wrap">
+                <Chip label="이동평균 크로스오버" color="primary" variant="outlined" />
+                <Chip label="RSI 과매수/과매도" color="secondary" variant="outlined" />
+                <Chip label="추세 추종" color="success" variant="outlined" />
+                <Chip label="평균회귀" color="warning" variant="outlined" />
+              </Box>
+            </CardContent>
+          </Card>
 
           {/* 상태 및 컨트롤 */}
           <Card sx={{ mb: 3 }}>
@@ -200,6 +200,13 @@ const TradingPage: React.FC = () => {
                   >
                     새로고침
                   </Button>
+                  <Button
+                    variant="outlined"
+                    startIcon={<Settings />}
+                    onClick={() => setSettingsOpen(true)}
+                  >
+                    설정
+                  </Button>
                 </Box>
               </Box>
 
@@ -243,6 +250,33 @@ const TradingPage: React.FC = () => {
             </CardContent>
           </Card>
 
+          {/* 현재 설정 */}
+          <Card sx={{ mb: 3 }}>
+            <CardContent>
+              <Typography variant="h6" fontWeight="medium" mb={2}>
+                현재 설정
+              </Typography>
+              <Box display="flex" flexWrap="wrap" gap={2}>
+                <Box flex={1} minWidth={200}>
+                  <Typography variant="body2" color="text.secondary">단기 이동평균</Typography>
+                  <Typography variant="h6">{config.shortPeriod}일</Typography>
+                </Box>
+                <Box flex={1} minWidth={200}>
+                  <Typography variant="body2" color="text.secondary">장기 이동평균</Typography>
+                  <Typography variant="h6">{config.longPeriod}일</Typography>
+                </Box>
+                <Box flex={1} minWidth={200}>
+                  <Typography variant="body2" color="text.secondary">RSI 기간</Typography>
+                  <Typography variant="h6">{config.rsiPeriod}일</Typography>
+                </Box>
+                <Box flex={1} minWidth={200}>
+                  <Typography variant="body2" color="text.secondary">최소 신뢰도</Typography>
+                  <Typography variant="h6">{(config.minConfidence * 100).toFixed(0)}%</Typography>
+                </Box>
+              </Box>
+            </CardContent>
+          </Card>
+
           {/* 알림 */}
           {!isRunning && (
             <Alert severity="warning" sx={{ mb: 3 }}>
@@ -270,17 +304,15 @@ const TradingPage: React.FC = () => {
       </Box>
 
       {/* 설정 다이얼로그 */}
-      <TradingSettings
+      <AlgorithmSettings
         open={settingsOpen}
         onClose={() => setSettingsOpen(false)}
         config={config}
         onConfigChange={handleSettingsChange}
-        selectedMarkets={markets}
-        onMarketsChange={setMarkets}
-        availableMarkets={availableMarkets}
+        algorithmType="ma_rsi"
       />
     </Box>
   );
 };
 
-export default TradingPage; 
+export default MARsiPage; 

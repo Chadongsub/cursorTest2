@@ -9,6 +9,9 @@ import UpbitSettingsPage from './pages/UpbitSettingsPage';
 import TradingPage from './pages/TradingPage';
 import CurrentPricePage from './pages/CurrentPricePage';
 import OrderBookPage from './pages/OrderBookPage';
+import MARsiPage from './pages/AlgorithmPages/MARsiPage';
+import BollingerPage from './pages/AlgorithmPages/BollingerPage';
+import StochasticPage from './pages/AlgorithmPages/StochasticPage';
 
 const theme = createTheme({
   palette: {
@@ -116,6 +119,9 @@ function App() {
           <Route path="/interest" element={<InterestPage />} />
           <Route path="/upbit-settings" element={<UpbitSettingsPage />} />
           <Route path="/trading" element={<TradingPage />} />
+          <Route path="/algorithm/ma-rsi" element={<MARsiPage />} />
+          <Route path="/algorithm/bollinger" element={<BollingerPage />} />
+          <Route path="/algorithm/stochastic" element={<StochasticPage />} />
           <Route path="/current-price/:market" element={<CurrentPricePage />} />
           <Route path="/orderbook/:market" element={<OrderBookPage />} />
         </Routes>

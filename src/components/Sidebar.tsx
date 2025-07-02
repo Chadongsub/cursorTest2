@@ -22,7 +22,10 @@ import {
   TrendingUp as TrendingUpIcon,
   Favorite as FavoriteIcon,
   Settings as SettingsIcon,
-  Psychology as PsychologyIcon
+  Psychology as PsychologyIcon,
+  ShowChart as ShowChartIcon,
+  Timeline as TimelineIcon,
+  Analytics as AnalyticsIcon
 } from '@mui/icons-material';
 import { Link } from 'react-router-dom';
 
@@ -36,7 +39,13 @@ const mainMenu = [
 
 const subMenu = [
   { text: '업비트 설정', icon: <SettingsIcon />, path: '/upbit-settings' },
-  { text: '트레이딩 알고리즘', icon: <PsychologyIcon />, path: '/trading' }
+];
+
+const algorithmMenu = [
+  { text: '이동평균 + RSI', icon: <ShowChartIcon />, path: '/algorithm/ma-rsi' },
+  { text: '볼린저 밴드', icon: <TimelineIcon />, path: '/algorithm/bollinger' },
+  { text: '스토캐스틱', icon: <AnalyticsIcon />, path: '/algorithm/stochastic' },
+  { text: '통합 트레이딩', icon: <PsychologyIcon />, path: '/trading' }
 ];
 
 const Sidebar: React.FC = () => {
@@ -48,10 +57,12 @@ const Sidebar: React.FC = () => {
     const currentPath = location.pathname;
     const menuItem = mainMenu.find(item => item.path === currentPath);
     const subMenuItem = subMenu.find(item => item.path === currentPath);
-    const selectedItem = menuItem || subMenuItem;
+    const algorithmMenuItem = algorithmMenu.find(item => item.path === currentPath);
+    const selectedItem = menuItem || subMenuItem || algorithmMenuItem;
     return selectedItem ? selectedItem.text : '대시보드';
   });
   const [open, setOpen] = useState(true);
+  const [algorithmOpen, setAlgorithmOpen] = useState(false);
 
   const handleNavigation = (path: string) => {
     navigate(path);
@@ -59,6 +70,10 @@ const Sidebar: React.FC = () => {
 
   const handleCollapse = () => {
     setOpen(prev => !prev);
+  };
+
+  const handleAlgorithmCollapse = () => {
+    setAlgorithmOpen(prev => !prev);
   };
 
   return (
@@ -137,6 +152,8 @@ const Sidebar: React.FC = () => {
             </List>
           </Collapse>
           <Divider sx={{ my: 2 }} />
+          
+          {/* 설정 메뉴 */}
           {subMenu.map((item) => (
             <ListItem disablePadding key={item.text}>
               <ListItemButton
@@ -161,6 +178,64 @@ const Sidebar: React.FC = () => {
               </ListItemButton>
             </ListItem>
           ))}
+          
+          <Divider sx={{ my: 2 }} />
+          
+          {/* 트레이딩 알고리즘 메뉴 */}
+          <ListItemButton onClick={handleAlgorithmCollapse} sx={{ borderRadius: 2 }}>
+            <ListItemIcon>
+              <PsychologyIcon />
+            </ListItemIcon>
+            <ListItemText primary="트레이딩 알고리즘" />
+            {algorithmOpen ? <ExpandLess /> : <ExpandMore />}
+          </ListItemButton>
+          <Collapse in={algorithmOpen} timeout="auto" unmountOnExit>
+            <List component="div" disablePadding>
+              {algorithmMenu.map((item) => (
+                <ListItem disablePadding key={item.text}>
+                  <ListItemButton
+                    key={item.path}
+                    component={Link}
+                    to={item.path}
+                    selected={location.pathname === item.path}
+                    sx={{
+                      borderRadius: 1,
+                      mx: 1,
+                      mb: 0.5,
+                      '&.Mui-selected': {
+                        backgroundColor: 'primary.main',
+                        color: 'primary.contrastText',
+                        '&:hover': {
+                          backgroundColor: 'primary.dark',
+                        },
+                      },
+                      '&:hover': {
+                        backgroundColor: 'action.hover',
+                      },
+                    }}
+                  >
+                    <ListItemIcon
+                      sx={{
+                        color: location.pathname === item.path ? 'inherit' : 'text.secondary',
+                        minWidth: 40,
+                      }}
+                    >
+                      {item.icon}
+                    </ListItemIcon>
+                    <ListItemText 
+                      primary={item.text} 
+                      sx={{ 
+                        '& .MuiListItemText-primary': { 
+                          fontSize: '0.875rem',
+                          fontWeight: 500
+                        } 
+                      }}
+                    />
+                  </ListItemButton>
+                </ListItem>
+              ))}
+            </List>
+          </Collapse>
         </List>
       </Box>
     </Drawer>
