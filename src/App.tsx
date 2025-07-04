@@ -7,6 +7,7 @@ import MarketPage from './pages/MarketPage';
 import InterestPage from './pages/InterestPage';
 import UpbitSettingsPage from './pages/UpbitSettingsPage';
 import TradingPage from './pages/TradingPage';
+import MockTradingPage from './pages/MockTradingPage';
 import CurrentPricePage from './pages/CurrentPricePage';
 import OrderBookPage from './pages/OrderBookPage';
 import MARsiPage from './pages/AlgorithmPages/MARsiPage';
@@ -119,6 +120,7 @@ function App() {
           <Route path="/interest" element={<InterestPage />} />
           <Route path="/upbit-settings" element={<UpbitSettingsPage />} />
           <Route path="/trading" element={<TradingPage />} />
+          <Route path="/mock-trading" element={<MockTradingPage />} />
           <Route path="/algorithm/ma-rsi" element={<MARsiPage />} />
           <Route path="/algorithm/bollinger" element={<BollingerPage />} />
           <Route path="/algorithm/stochastic" element={<StochasticPage />} />

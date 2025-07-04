@@ -25,7 +25,8 @@ import {
   Psychology as PsychologyIcon,
   ShowChart as ShowChartIcon,
   Timeline as TimelineIcon,
-  Analytics as AnalyticsIcon
+  Analytics as AnalyticsIcon,
+  AccountBalance as AccountBalanceIcon
 } from '@mui/icons-material';
 import { Link } from 'react-router-dom';
 
@@ -35,6 +36,7 @@ const mainMenu = [
   { text: '대시보드', icon: <DashboardIcon />, path: '/' },
   { text: '마켓현황', icon: <TrendingUpIcon />, path: '/market' },
   { text: '관심종목', icon: <FavoriteIcon />, path: '/interest' },
+  { text: '모의투자', icon: <AccountBalanceIcon />, path: '/mock-trading' },
 ];
 
 const subMenu = [

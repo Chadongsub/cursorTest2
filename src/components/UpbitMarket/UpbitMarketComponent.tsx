@@ -34,13 +34,15 @@ import {
   WifiOff as WifiOffIcon,
   WifiTethering as WifiTetheringIcon,
   Warning as WarningIcon,
-  FilterList as FilterListIcon
+  FilterList as FilterListIcon,
+  Add as AddIcon
 } from '@mui/icons-material';
 import { styled } from '@mui/material/styles';
 import { useNavigate } from 'react-router-dom';
 import { upbitApi, type UpbitMarket, type MarketWarningType } from '../../services/upbit';
 import { upbitWebSocket, type UpbitTicker } from '../../services/upbitWebSocket';
 import { interestService, type InterestMarket } from '../../services/interestService';
+import { mockTradingService } from '../../services/mockTradingService';
 import { loadUpbitSettings, getUpbitSettings } from '../../utils/upbitSettings';
 import Toast from '../Toast/Toast';
 
@@ -406,6 +408,39 @@ const UpbitMarketComponent: React.FC<UpbitMarketComponentProps> = ({
     navigate(`/orderbook/${marketCode}`);
   };
 
+  const handleMockBuyClick = async (marketCode: string, currentPrice: number) => {
+    try {
+      // 기본 수량 계산 (10만원 어치)
+      const defaultAmount = 100000;
+      const quantity = defaultAmount / currentPrice;
+      
+      await mockTradingService.placeBuyOrder(marketCode, currentPrice, quantity);
+      showToast(`${marketCode.replace('KRW-', '')} 매수 주문이 완료되었습니다.`, 'success');
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : '매수 주문 처리 중 오류가 발생했습니다.', 'error');
+    }
+  };
+
+  const handleMockSellClick = async (marketCode: string, currentPrice: number) => {
+    try {
+      const positions = mockTradingService.getPositions();
+      const position = positions.find(p => p.market === marketCode);
+      
+      if (!position || position.quantity <= 0) {
+        showToast('매도할 수량이 없습니다.', 'warning');
+        return;
+      }
+      
+      // 보유 수량의 50% 매도
+      const sellQuantity = position.quantity * 0.5;
+      
+      await mockTradingService.placeSellOrder(marketCode, currentPrice, sellQuantity);
+      showToast(`${marketCode.replace('KRW-', '')} 매도 주문이 완료되었습니다.`, 'success');
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : '매도 주문 처리 중 오류가 발생했습니다.', 'error');
+    }
+  };
+
   // 시장경보 타입에 따른 라벨 반환
   const getWarningLabel = (warningType: string) => {
     const warningLabels: Record<string, string> = {
@@ -745,6 +780,39 @@ const UpbitMarketComponent: React.FC<UpbitMarketComponentProps> = ({
                             }}
                           >
                             호가
+                          </Button>
+                        </Box>
+                        {/* 모의투자 버튼 영역 */}
+                        <Box sx={{ display: 'flex', gap: 1, mt: 1, flexShrink: 0 }}>
+                          <Button
+                            variant="contained"
+                            size="small"
+                            color="success"
+                            startIcon={<AddIcon />}
+                            onClick={() => handleMockBuyClick(market.market, ticker.trade_price)}
+                            sx={{ 
+                              flex: 1, 
+                              fontSize: '0.75rem',
+                              fontWeight: 600,
+                              py: 0.5
+                            }}
+                          >
+                            매수
+                          </Button>
+                          <Button
+                            variant="contained"
+                            size="small"
+                            color="error"
+                            startIcon={<RemoveIcon />}
+                            onClick={() => handleMockSellClick(market.market, ticker.trade_price)}
+                            sx={{ 
+                              flex: 1, 
+                              fontSize: '0.75rem',
+                              fontWeight: 600,
+                              py: 0.5
+                            }}
+                          >
+                            매도
                           </Button>
                         </Box>
                       </CardContent>
