@@ -50,11 +50,32 @@ export interface MockTradingStats {
   maxDrawdown: number;
 }
 
+export interface AutoTradingConfig {
+  enabled: boolean;
+  algorithm: 'ma_rsi' | 'bollinger' | 'stochastic';
+  markets: string[];
+  investmentAmount: number; // 각 거래당 투자 금액
+  maxPositions: number; // 최대 보유 포지션 수
+  stopLoss: number; // 손절 비율 (%)
+  takeProfit: number; // 익절 비율 (%)
+}
+
+export interface AutoTradingResult {
+  market: string;
+  signal: 'buy' | 'sell' | 'hold';
+  confidence: number;
+  price: number;
+  timestamp: string;
+  reason: string;
+}
+
 class MockTradingService {
   private readonly ACCOUNT_KEY = 'mockTradingAccount';
   private readonly POSITIONS_KEY = 'mockTradingPositions';
   private readonly ORDERS_KEY = 'mockTradingOrders';
   private readonly TRADES_KEY = 'mockTradingTrades';
+  private readonly AUTO_TRADING_CONFIG_KEY = 'mockTradingAutoConfig';
+  private readonly AUTO_TRADING_RESULTS_KEY = 'mockTradingAutoResults';
   private readonly TRADING_FEE = 0.0005; // 0.05% 거래 수수료
 
   // 계정 정보 가져오기
@@ -407,6 +428,190 @@ class MockTradingService {
     this.updateAccount(account);
   }
 
+  // 자동 거래 설정 가져오기
+  getAutoTradingConfig(): AutoTradingConfig {
+    const stored = localStorage.getItem(this.AUTO_TRADING_CONFIG_KEY);
+    if (stored) {
+      return JSON.parse(stored);
+    }
+
+    // 기본 설정
+    const defaultConfig: AutoTradingConfig = {
+      enabled: false,
+      algorithm: 'ma_rsi',
+      markets: ['KRW-BTC', 'KRW-ETH', 'KRW-XRP'],
+      investmentAmount: 100000,
+      maxPositions: 5,
+      stopLoss: 5,
+      takeProfit: 10
+    };
+
+    localStorage.setItem(this.AUTO_TRADING_CONFIG_KEY, JSON.stringify(defaultConfig));
+    return defaultConfig;
+  }
+
+  // 자동 거래 설정 업데이트
+  updateAutoTradingConfig(config: AutoTradingConfig): void {
+    localStorage.setItem(this.AUTO_TRADING_CONFIG_KEY, JSON.stringify(config));
+  }
+
+  // 자동 거래 결과 가져오기
+  getAutoTradingResults(): AutoTradingResult[] {
+    const stored = localStorage.getItem(this.AUTO_TRADING_RESULTS_KEY);
+    return stored ? JSON.parse(stored) : [];
+  }
+
+  // 자동 거래 결과 추가
+  addAutoTradingResult(result: AutoTradingResult): void {
+    const results = this.getAutoTradingResults();
+    results.push(result);
+    
+    // 최근 100개만 유지
+    if (results.length > 100) {
+      results.splice(0, results.length - 100);
+    }
+    
+    localStorage.setItem(this.AUTO_TRADING_RESULTS_KEY, JSON.stringify(results));
+  }
+
+  // 자동 거래 실행
+  async executeAutoTrading(currentPrices: { [market: string]: number }): Promise<void> {
+    const config = this.getAutoTradingConfig();
+    if (!config.enabled) return;
+
+    const account = this.getAccount();
+    const positions = this.getPositions();
+
+    // 각 마켓에 대해 자동 거래 실행
+    for (const market of config.markets) {
+      const currentPrice = currentPrices[market];
+      if (!currentPrice) continue;
+
+      try {
+        // 손절/익절 체크
+        const position = positions.find(p => p.market === market);
+        if (position) {
+          // 손절 체크
+          if (position.profitLossRate <= -config.stopLoss) {
+            await this.placeSellOrder(market, currentPrice, position.quantity);
+            this.addAutoTradingResult({
+              market,
+              signal: 'sell',
+              confidence: 1.0,
+              price: currentPrice,
+              timestamp: new Date().toISOString(),
+              reason: `손절 (${position.profitLossRate.toFixed(2)}%)`
+            });
+            continue;
+          }
+
+          // 익절 체크
+          if (position.profitLossRate >= config.takeProfit) {
+            await this.placeSellOrder(market, currentPrice, position.quantity);
+            this.addAutoTradingResult({
+              market,
+              signal: 'sell',
+              confidence: 1.0,
+              price: currentPrice,
+              timestamp: new Date().toISOString(),
+              reason: `익절 (${position.profitLossRate.toFixed(2)}%)`
+            });
+            continue;
+          }
+        }
+
+        // 최대 포지션 수 체크
+        if (positions.length >= config.maxPositions && !position) {
+          continue;
+        }
+
+        // 잔고 체크
+        if (account.balance < config.investmentAmount) {
+          continue;
+        }
+
+        // 트레이딩 알고리즘 적용
+        let signal: 'buy' | 'sell' | 'hold' = 'hold';
+        let confidence = 0;
+        let reason = '';
+
+        try {
+          // 최근 가격 데이터 가져오기 (실제로는 캔들 데이터가 필요하지만 여기서는 현재가만 사용)
+          const recentPrices = [currentPrice * 0.99, currentPrice * 1.01, currentPrice]; // 간단한 예시
+          
+          if (config.algorithm === 'ma_rsi') {
+            // 이동평균 + RSI 알고리즘
+            const shortMA = recentPrices.reduce((sum, price) => sum + price, 0) / recentPrices.length;
+            const longMA = currentPrice * 1.005; // 간단한 예시
+            
+            if (shortMA > longMA && currentPrice > shortMA) {
+              signal = 'buy';
+              confidence = 0.8;
+              reason = '이동평균 상승 + RSI 매수 신호';
+            } else if (shortMA < longMA && currentPrice < shortMA) {
+              signal = 'sell';
+              confidence = 0.8;
+              reason = '이동평균 하락 + RSI 매도 신호';
+            }
+          } else if (config.algorithm === 'bollinger') {
+            // 볼린저 밴드 알고리즘
+            const sma = recentPrices.reduce((sum, price) => sum + price, 0) / recentPrices.length;
+            const upperBand = sma * 1.02;
+            const lowerBand = sma * 0.98;
+            
+            if (currentPrice <= lowerBand) {
+              signal = 'buy';
+              confidence = 0.7;
+              reason = '볼린저 밴드 하단 터치 매수 신호';
+            } else if (currentPrice >= upperBand) {
+              signal = 'sell';
+              confidence = 0.7;
+              reason = '볼린저 밴드 상단 터치 매도 신호';
+            }
+          } else if (config.algorithm === 'stochastic') {
+            // 스토캐스틱 알고리즘
+            const highest = Math.max(...recentPrices);
+            const lowest = Math.min(...recentPrices);
+            const k = ((currentPrice - lowest) / (highest - lowest)) * 100;
+            
+            if (k <= 20) {
+              signal = 'buy';
+              confidence = 0.6;
+              reason = '스토캐스틱 과매도 매수 신호';
+            } else if (k >= 80) {
+              signal = 'sell';
+              confidence = 0.6;
+              reason = '스토캐스틱 과매수 매도 신호';
+            }
+          }
+        } catch (error) {
+          console.error('알고리즘 실행 오류:', error);
+        }
+
+        if (signal === 'buy') {
+          const quantity = config.investmentAmount / currentPrice;
+          await this.placeBuyOrder(market, currentPrice, quantity);
+        } else if (signal === 'sell' && position) {
+          await this.placeSellOrder(market, currentPrice, position.quantity);
+        }
+
+        if (signal !== 'hold') {
+          this.addAutoTradingResult({
+            market,
+            signal,
+            confidence,
+            price: currentPrice,
+            timestamp: new Date().toISOString(),
+            reason
+          });
+        }
+
+      } catch (error) {
+        console.error(`자동 거래 오류 (${market}):`, error);
+      }
+    }
+  }
+
   // 계정 초기화
   resetAccount(): void {
     const initialAccount: MockAccount = {
@@ -421,6 +626,7 @@ class MockTradingService {
     localStorage.setItem(this.POSITIONS_KEY, JSON.stringify([]));
     localStorage.setItem(this.ORDERS_KEY, JSON.stringify([]));
     localStorage.setItem(this.TRADES_KEY, JSON.stringify([]));
+    localStorage.setItem(this.AUTO_TRADING_RESULTS_KEY, JSON.stringify([]));
   }
 }
 

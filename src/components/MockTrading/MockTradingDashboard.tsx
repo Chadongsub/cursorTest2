@@ -22,7 +22,9 @@ import {
   Alert,
   IconButton,
   Tooltip,
-  LinearProgress
+  LinearProgress,
+  Tabs,
+  Tab
 } from '@mui/material';
 import {
   AccountBalance as AccountBalanceIcon,
@@ -33,13 +35,15 @@ import {
   Remove as RemoveIcon,
   History as HistoryIcon,
   Assessment as AssessmentIcon,
-  Edit as EditIcon
+  Edit as EditIcon,
+  AutoAwesome as AutoTradingIcon
 } from '@mui/icons-material';
 import { styled } from '@mui/material/styles';
 import { mockTradingService, MockAccount, MockPosition, MockOrder, MockTrade, MockTradingStats } from '../../services/mockTradingService';
 import { upbitApi } from '../../services/upbit';
 import { upbitWebSocket, UpbitTicker } from '../../services/upbitWebSocket';
 import Toast from '../Toast/Toast';
+import AlgorithmTabs from './AlgorithmTabs';
 
 const StyledTableCell = styled(TableCell)(({ theme }) => ({
   padding: theme.spacing(1),
@@ -102,6 +106,9 @@ const MockTradingDashboard: React.FC<MockTradingDashboardProps> = ({ refreshKey 
     message: '',
     severity: 'info'
   });
+  const [activeTab, setActiveTab] = useState(0);
+  const [autoTradingRefreshKey, setAutoTradingRefreshKey] = useState(0);
+  const [autoTradingInterval, setAutoTradingInterval] = useState<NodeJS.Timeout | null>(null);
 
   // 데이터 로드
   useEffect(() => {
@@ -138,6 +145,38 @@ const MockTradingDashboard: React.FC<MockTradingDashboardProps> = ({ refreshKey 
     if (Object.keys(currentPrices).length > 0) {
       mockTradingService.updatePositionValues(currentPrices);
       loadData();
+    }
+  }, [currentPrices]);
+
+  // 자동 거래 실행
+  useEffect(() => {
+    const config = mockTradingService.getAutoTradingConfig();
+    
+    if (config.enabled) {
+      // 30초마다 자동 거래 실행
+      const interval = setInterval(async () => {
+        try {
+          await mockTradingService.executeAutoTrading(currentPrices);
+          setAutoTradingRefreshKey(prev => prev + 1);
+          loadData(); // 데이터 새로고침
+        } catch (error) {
+          console.error('자동 거래 실행 오류:', error);
+        }
+      }, 30000);
+
+      setAutoTradingInterval(interval);
+
+      return () => {
+        if (interval) {
+          clearInterval(interval);
+        }
+      };
+    } else {
+      // 자동 거래가 비활성화되면 인터벌 정리
+      if (autoTradingInterval) {
+        clearInterval(autoTradingInterval);
+        setAutoTradingInterval(null);
+      }
     }
   }, [currentPrices]);
 
@@ -245,6 +284,37 @@ const MockTradingDashboard: React.FC<MockTradingDashboardProps> = ({ refreshKey 
     setToast(prev => ({ ...prev, open: false }));
   };
 
+  const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
+    setActiveTab(newValue);
+    if (newValue === 3) { // 알고리즘별 거래 탭
+      setAutoTradingRefreshKey(prev => prev + 1);
+    }
+  };
+
+  const handleAutoTradingConfigChange = () => {
+    // 자동 거래 설정이 변경되면 인터벌 재설정
+    const config = mockTradingService.getAutoTradingConfig();
+    
+    if (autoTradingInterval) {
+      clearInterval(autoTradingInterval);
+      setAutoTradingInterval(null);
+    }
+    
+    if (config.enabled) {
+      const interval = setInterval(async () => {
+        try {
+          await mockTradingService.executeAutoTrading(currentPrices);
+          setAutoTradingRefreshKey(prev => prev + 1);
+          loadData();
+        } catch (error) {
+          console.error('자동 거래 실행 오류:', error);
+        }
+      }, 30000);
+      
+      setAutoTradingInterval(interval);
+    }
+  };
+
   const handleBalanceSubmit = () => {
     try {
       const newBalance = parseFloat(balanceDialog.newBalance);
@@ -320,7 +390,16 @@ const MockTradingDashboard: React.FC<MockTradingDashboardProps> = ({ refreshKey 
             <Typography variant="h6" fontWeight="bold">
               모의투자 계정
             </Typography>
-            <Box display="flex" gap={1}>
+            <Box display="flex" gap={1} alignItems="center">
+              {mockTradingService.getAutoTradingConfig().enabled && (
+                <Chip
+                  icon={<AutoTradingIcon />}
+                  label="자동거래 활성화"
+                  color="success"
+                  size="small"
+                  variant="outlined"
+                />
+              )}
               <Tooltip title="새로고침">
                 <IconButton onClick={loadData} size="small">
                   <RefreshIcon />
@@ -390,95 +469,257 @@ const MockTradingDashboard: React.FC<MockTradingDashboardProps> = ({ refreshKey 
         </CardContent>
       </Card>
 
-      {/* 포지션 테이블 */}
+      {/* 탭 네비게이션 */}
       <Card sx={{ mb: 3 }}>
-        <CardContent>
-          <Typography variant="h6" fontWeight="bold" mb={2}>
-            보유 포지션 ({positions.length}개)
-          </Typography>
-          
-          {positions.length === 0 ? (
-            <Alert severity="info">보유한 포지션이 없습니다.</Alert>
-          ) : (
-            <TableContainer component={Paper} variant="outlined">
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <StyledTableCell>마켓</StyledTableCell>
-                    <StyledTableCell>보유 수량</StyledTableCell>
-                    <StyledTableCell>평균 매수가</StyledTableCell>
-                    <StyledTableCell>현재가</StyledTableCell>
-                    <StyledTableCell>현재 가치</StyledTableCell>
-                    <StyledTableCell>손익</StyledTableCell>
-                    <StyledTableCell>손익률</StyledTableCell>
-                                            <StyledTableCell>거래</StyledTableCell>
+        <CardContent sx={{ p: 0 }}>
+          <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
+            <Tabs value={activeTab} onChange={handleTabChange} variant="scrollable" scrollButtons="auto">
+              <Tab 
+                icon={<TrendingUpIcon />} 
+                label="포지션" 
+                iconPosition="start"
+              />
+              <Tab 
+                icon={<HistoryIcon />} 
+                label="주문내역" 
+                iconPosition="start"
+              />
+              <Tab 
+                icon={<AssessmentIcon />} 
+                label="거래내역" 
+                iconPosition="start"
+              />
+              <Tab 
+                icon={<AutoTradingIcon />} 
+                label="알고리즘별 거래" 
+                iconPosition="start"
+              />
+            </Tabs>
+          </Box>
+
+          {/* 포지션 탭 */}
+          {activeTab === 0 && (
+            <Box sx={{ p: 3 }}>
+              <Typography variant="h6" fontWeight="bold" mb={2}>
+                보유 포지션 ({positions.length}개)
+              </Typography>
+              
+              {positions.length === 0 ? (
+                <Alert severity="info">보유한 포지션이 없습니다.</Alert>
+              ) : (
+                <TableContainer component={Paper} variant="outlined">
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow>
+                        <StyledTableCell>마켓</StyledTableCell>
+                        <StyledTableCell>보유 수량</StyledTableCell>
+                        <StyledTableCell>평균 매수가</StyledTableCell>
+                        <StyledTableCell>현재가</StyledTableCell>
+                        <StyledTableCell>현재 가치</StyledTableCell>
+                        <StyledTableCell>손익</StyledTableCell>
+                        <StyledTableCell>손익률</StyledTableCell>
+                        <StyledTableCell>거래</StyledTableCell>
                         <StyledTableCell>수정</StyledTableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {positions.map((position) => {
-                    const currentPrice = currentPrices[position.market] || position.avgPrice;
-                    const isProfit = position.profitLoss >= 0;
-                    
-                    return (
-                      <TableRow key={position.market} hover>
-                        <StyledTableCell>
-                          <Chip 
-                            label={position.market.replace('KRW-', '')} 
-                            size="small" 
-                            color="primary" 
-                            variant="outlined"
-                          />
-                        </StyledTableCell>
-                        <StyledTableCell>{formatQuantity(position.quantity)}</StyledTableCell>
-                        <StyledTableCell>{formatPrice(position.avgPrice)}원</StyledTableCell>
-                        <StyledTableCell>{formatPrice(currentPrice)}원</StyledTableCell>
-                        <StyledTableCell>{formatPrice(position.currentValue)}원</StyledTableCell>
-                        <ProfitLossCell profit={isProfit}>
-                          {formatPrice(position.profitLoss)}원
-                        </ProfitLossCell>
-                        <ProfitLossCell profit={isProfit}>
-                          {formatPercentage(position.profitLossRate)}
-                        </ProfitLossCell>
-                        <StyledTableCell>
-                          <Box display="flex" gap={0.5}>
-                            <Tooltip title="매수">
-                              <IconButton
-                                size="small"
-                                color="primary"
-                                onClick={() => handleOrderClick('buy', position.market, currentPrice)}
-                              >
-                                <AddIcon fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
-                            <Tooltip title="매도">
-                              <IconButton
-                                size="small"
-                                color="error"
-                                onClick={() => handleOrderClick('sell', position.market, currentPrice)}
-                              >
-                                <RemoveIcon fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
-                          </Box>
-                        </StyledTableCell>
-                        <StyledTableCell>
-                          <Tooltip title="포지션 수정">
-                            <IconButton
-                              size="small"
-                              color="primary"
-                              onClick={() => handlePositionEdit(position)}
-                            >
-                              <EditIcon fontSize="small" />
-                            </IconButton>
-                          </Tooltip>
-                        </StyledTableCell>
                       </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </TableContainer>
+                    </TableHead>
+                    <TableBody>
+                      {positions.map((position) => {
+                        const currentPrice = currentPrices[position.market] || position.avgPrice;
+                        const isProfit = position.profitLoss >= 0;
+                        
+                        return (
+                          <TableRow key={position.market} hover>
+                            <StyledTableCell>
+                              <Chip 
+                                label={position.market.replace('KRW-', '')} 
+                                size="small" 
+                                color="primary" 
+                                variant="outlined"
+                              />
+                            </StyledTableCell>
+                            <StyledTableCell>{formatQuantity(position.quantity)}</StyledTableCell>
+                            <StyledTableCell>{formatPrice(position.avgPrice)}원</StyledTableCell>
+                            <StyledTableCell>{formatPrice(currentPrice)}원</StyledTableCell>
+                            <StyledTableCell>{formatPrice(position.currentValue)}원</StyledTableCell>
+                            <ProfitLossCell profit={isProfit}>
+                              {formatPrice(position.profitLoss)}원
+                            </ProfitLossCell>
+                            <ProfitLossCell profit={isProfit}>
+                              {formatPercentage(position.profitLossRate)}
+                            </ProfitLossCell>
+                            <StyledTableCell>
+                              <Box display="flex" gap={0.5}>
+                                <Tooltip title="매수">
+                                  <IconButton
+                                    size="small"
+                                    color="primary"
+                                    onClick={() => handleOrderClick('buy', position.market, currentPrice)}
+                                  >
+                                    <AddIcon fontSize="small" />
+                                  </IconButton>
+                                </Tooltip>
+                                <Tooltip title="매도">
+                                  <IconButton
+                                    size="small"
+                                    color="error"
+                                    onClick={() => handleOrderClick('sell', position.market, currentPrice)}
+                                  >
+                                    <RemoveIcon fontSize="small" />
+                                  </IconButton>
+                                </Tooltip>
+                              </Box>
+                            </StyledTableCell>
+                            <StyledTableCell>
+                              <Tooltip title="수량 수정">
+                                <IconButton
+                                  size="small"
+                                  color="primary"
+                                  onClick={() => handlePositionEdit(position)}
+                                >
+                                  <EditIcon fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                            </StyledTableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              )}
+            </Box>
+          )}
+
+          {/* 주문내역 탭 */}
+          {activeTab === 1 && (
+            <Box sx={{ p: 3 }}>
+              <Typography variant="h6" fontWeight="bold" mb={2}>
+                주문 내역 ({orders.length}개)
+              </Typography>
+              
+              {orders.length === 0 ? (
+                <Alert severity="info">주문 내역이 없습니다.</Alert>
+              ) : (
+                <TableContainer component={Paper} variant="outlined">
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow>
+                        <StyledTableCell>시간</StyledTableCell>
+                        <StyledTableCell>마켓</StyledTableCell>
+                        <StyledTableCell>유형</StyledTableCell>
+                        <StyledTableCell>수량</StyledTableCell>
+                        <StyledTableCell>가격</StyledTableCell>
+                        <StyledTableCell>총액</StyledTableCell>
+                        <StyledTableCell>상태</StyledTableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {orders.slice().reverse().map((order, index) => (
+                        <TableRow key={index} hover>
+                          <StyledTableCell>
+                            {new Date(order.createdAt).toLocaleString('ko-KR')}
+                          </StyledTableCell>
+                          <StyledTableCell>
+                            <Chip 
+                              label={order.market.replace('KRW-', '')} 
+                              size="small" 
+                              color="primary" 
+                              variant="outlined"
+                            />
+                          </StyledTableCell>
+                          <StyledTableCell>
+                            <Chip
+                              label={order.type === 'buy' ? '매수' : '매도'}
+                              size="small"
+                              color={order.type === 'buy' ? 'success' : 'error'}
+                              variant="filled"
+                            />
+                          </StyledTableCell>
+                          <StyledTableCell>{formatQuantity(order.quantity)}</StyledTableCell>
+                          <StyledTableCell>{formatPrice(order.price)}원</StyledTableCell>
+                          <StyledTableCell>{formatPrice(order.quantity * order.price)}원</StyledTableCell>
+                          <StyledTableCell>
+                            <Chip
+                              label={order.status}
+                              size="small"
+                              color={order.status === 'completed' ? 'success' : 'warning'}
+                              variant="outlined"
+                            />
+                          </StyledTableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              )}
+            </Box>
+          )}
+
+          {/* 거래내역 탭 */}
+          {activeTab === 2 && (
+            <Box sx={{ p: 3 }}>
+              <Typography variant="h6" fontWeight="bold" mb={2}>
+                거래 내역 ({trades.length}개)
+              </Typography>
+              
+              {trades.length === 0 ? (
+                <Alert severity="info">거래 내역이 없습니다.</Alert>
+              ) : (
+                <TableContainer component={Paper} variant="outlined">
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow>
+                        <StyledTableCell>시간</StyledTableCell>
+                        <StyledTableCell>마켓</StyledTableCell>
+                        <StyledTableCell>유형</StyledTableCell>
+                        <StyledTableCell>수량</StyledTableCell>
+                        <StyledTableCell>가격</StyledTableCell>
+                        <StyledTableCell>총액</StyledTableCell>
+                        <StyledTableCell>수수료</StyledTableCell>
+                        <StyledTableCell>실제 금액</StyledTableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {trades.slice().reverse().map((trade, index) => (
+                        <TableRow key={index} hover>
+                          <StyledTableCell>
+                            {new Date(trade.timestamp).toLocaleString('ko-KR')}
+                          </StyledTableCell>
+                          <StyledTableCell>
+                            <Chip 
+                              label={trade.market.replace('KRW-', '')} 
+                              size="small" 
+                              color="primary" 
+                              variant="outlined"
+                            />
+                          </StyledTableCell>
+                          <StyledTableCell>
+                            <Chip
+                              label={trade.type === 'buy' ? '매수' : '매도'}
+                              size="small"
+                              color={trade.type === 'buy' ? 'success' : 'error'}
+                              variant="filled"
+                            />
+                          </StyledTableCell>
+                          <StyledTableCell>{formatQuantity(trade.quantity)}</StyledTableCell>
+                          <StyledTableCell>{formatPrice(trade.price)}원</StyledTableCell>
+                          <StyledTableCell>{formatPrice(trade.quantity * trade.price)}원</StyledTableCell>
+                          <StyledTableCell>{formatPrice(trade.fee)}원</StyledTableCell>
+                          <StyledTableCell>{formatPrice(trade.totalAmount - trade.fee)}원</StyledTableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              )}
+            </Box>
+          )}
+
+          {/* 알고리즘별 탭 */}
+          {activeTab === 3 && (
+            <Box sx={{ p: 3 }}>
+              <AlgorithmTabs onConfigChange={handleAutoTradingConfigChange} />
+            </Box>
           )}
         </CardContent>
       </Card>
