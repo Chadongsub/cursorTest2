@@ -41,7 +41,7 @@ import { useNavigate } from 'react-router-dom';
 import { upbitWebSocket, type UpbitTicker } from '../../services/upbitWebSocket';
 import { upbitApi, type MarketWarningType } from '../../services/upbit';
 import { interestService, type InterestMarket } from '../../services/interestService';
-import { getUpbitSettings } from '../../utils/upbitSettings';
+import { getUpbitSettings, onSettingsChange } from '../../utils/upbitSettings';
 import Toast from '../Toast/Toast';
 
 const StyledCard = styled(Card, {
@@ -102,6 +102,7 @@ const InterestMarkets: React.FC<InterestMarketsProps> = ({
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected' | 'connecting'>('disconnected');
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
+  const [useSocket, setUseSocket] = useState(true);
   const [localSelectedWarnings, setLocalSelectedWarnings] = useState<MarketWarningType[]>(selectedWarnings);
   const [localShowWarningOnly, setLocalShowWarningOnly] = useState(showWarningOnly);
   const [toast, setToast] = useState<{
@@ -120,6 +121,15 @@ const InterestMarkets: React.FC<InterestMarketsProps> = ({
 
   const navigate = useNavigate();
 
+  // 초기 업비트 설정 로드
+  useEffect(() => {
+    const loadSettings = async () => {
+      const settings = await getUpbitSettings();
+      setUseSocket(settings.useSocket);
+    };
+    loadSettings();
+  }, []);
+
   // WebSocket 티커 업데이트 핸들러
   const handleTickerUpdate = useCallback((ticker: UpbitTicker) => {
     setTickers(prev => ({ ...prev, [ticker.market]: ticker }));
@@ -137,56 +147,90 @@ const InterestMarkets: React.FC<InterestMarketsProps> = ({
     fetchData();
   }, []);
 
+  // 업비트 설정 변경 감지
   useEffect(() => {
-    const settings = getUpbitSettings();
-    const { useSocket } = settings;
-
-    if (useSocket) {
-      // WebSocket 이벤트 핸들러 설정
-      upbitWebSocket.onTickerUpdate = handleTickerUpdate;
-      upbitWebSocket.onConnect = () => {
-        setConnectionStatus('connected');
-        showToast('실시간 데이터 연결됨', 'success');
-        console.log('관심종목 WebSocket 연결됨');
-      };
-      upbitWebSocket.onDisconnect = () => {
+    const removeListener = onSettingsChange((newSettings) => {
+      console.log('업비트 설정 변경 감지 (관심종목):', newSettings);
+      
+      setUseSocket(newSettings.useSocket);
+      
+      if (!newSettings.useSocket) {
+        // WebSocket 비활성화
         setConnectionStatus('disconnected');
-        showToast('실시간 데이터 연결 끊김', 'warning');
-        console.log('관심종목 WebSocket 연결 끊김');
-      };
-      upbitWebSocket.onError = () => {
-        setConnectionStatus('disconnected');
-        showToast('실시간 데이터 연결 오류', 'error');
-        console.log('관심종목 WebSocket 오류');
-      };
-
-      // 연결 상태 주기적 확인 (5초마다)
-      const connectionCheckInterval = setInterval(() => {
-        const currentState = upbitWebSocket.getConnectionState();
-        if (currentState === 'connected' && connectionStatus !== 'connected') {
-          setConnectionStatus('connected');
-        } else if (currentState === 'disconnected' && connectionStatus !== 'disconnected') {
-          setConnectionStatus('disconnected');
-        }
-      }, 5000);
-
-      return () => {
-        clearInterval(connectionCheckInterval);
-        // 컴포넌트 언마운트 시 이벤트 핸들러 제거
-        upbitWebSocket.onTickerUpdate = undefined;
-        upbitWebSocket.onConnect = undefined;
-        upbitWebSocket.onDisconnect = undefined;
-        upbitWebSocket.onError = undefined;
-        upbitWebSocket.disconnect(); // 연결 해제
-      };
-    } else {
-      // WebSocket 사용 안함일 때 연결 상태를 disconnected로 설정
-      setConnectionStatus('disconnected');
-      // 기존 연결이 있으면 해제
-      if (upbitWebSocket.isConnected()) {
         upbitWebSocket.disconnect();
+      } else {
+        // WebSocket 재연결
+        setConnectionStatus('connecting');
+        upbitWebSocket.connect();
+        
+        // 관심 종목 재구독
+        const marketCodes = interestMarkets.map(item => item.market);
+        if (marketCodes.length > 0) {
+          setTimeout(() => {
+            console.log('설정 변경으로 관심 종목 재구독:', marketCodes);
+            upbitWebSocket.subscribeToMarkets(marketCodes);
+          }, 2000);
+        }
       }
-    }
+    });
+
+    return removeListener;
+  }, [interestMarkets]);
+
+  useEffect(() => {
+    const initializeWebSocket = async () => {
+      const settings = await getUpbitSettings();
+      const { useSocket } = settings;
+
+      if (useSocket) {
+        // WebSocket 이벤트 핸들러 설정
+        upbitWebSocket.onTickerUpdate = handleTickerUpdate;
+        upbitWebSocket.onConnect = () => {
+          setConnectionStatus('connected');
+          showToast('실시간 데이터 연결됨', 'success');
+          console.log('관심종목 WebSocket 연결됨');
+        };
+        upbitWebSocket.onDisconnect = () => {
+          setConnectionStatus('disconnected');
+          showToast('실시간 데이터 연결 끊김', 'warning');
+          console.log('관심종목 WebSocket 연결 끊김');
+        };
+        upbitWebSocket.onError = () => {
+          setConnectionStatus('disconnected');
+          showToast('실시간 데이터 연결 오류', 'error');
+          console.log('관심종목 WebSocket 오류');
+        };
+
+        // 연결 상태 주기적 확인 (5초마다)
+        const connectionCheckInterval = setInterval(() => {
+          const currentState = upbitWebSocket.getConnectionState();
+          if (currentState === 'connected' && connectionStatus !== 'connected') {
+            setConnectionStatus('connected');
+          } else if (currentState === 'disconnected' && connectionStatus !== 'disconnected') {
+            setConnectionStatus('disconnected');
+          }
+        }, 5000);
+
+        return () => {
+          clearInterval(connectionCheckInterval);
+          // 컴포넌트 언마운트 시 이벤트 핸들러 제거
+          upbitWebSocket.onTickerUpdate = undefined;
+          upbitWebSocket.onConnect = undefined;
+          upbitWebSocket.onDisconnect = undefined;
+          upbitWebSocket.onError = undefined;
+          upbitWebSocket.disconnect(); // 연결 해제
+        };
+      } else {
+        // WebSocket 사용 안함일 때 연결 상태를 disconnected로 설정
+        setConnectionStatus('disconnected');
+        // 기존 연결이 있으면 해제
+        if (upbitWebSocket.isConnected()) {
+          upbitWebSocket.disconnect();
+        }
+      }
+    };
+
+    initializeWebSocket();
   }, [handleTickerUpdate]);
 
   const loadInterestMarkets = async () => {
@@ -233,7 +277,7 @@ const InterestMarkets: React.FC<InterestMarketsProps> = ({
         setLastUpdate(new Date());
 
         // useSocket 설정에 따라 WebSocket 연결
-        const settings = getUpbitSettings();
+        const settings = await getUpbitSettings();
         if (settings.useSocket) {
           // WebSocket 연결 및 구독
           setConnectionStatus('connecting');

@@ -88,6 +88,7 @@ export class TradingAlgorithm {
     const prices = this.priceHistory.get(market);
     
     if (!prices || prices.length < this.config.longPeriod) {
+      console.log(`[${market}] 가격 데이터 부족: ${prices?.length || 0}/${this.config.longPeriod} 필요`);
       return null;
     }
 
@@ -103,6 +104,14 @@ export class TradingAlgorithm {
           this.config.rsiPeriod
         );
         
+        console.log(`[${market}] 신호 분석:`, {
+          maSignal: combinedSignal.maSignal,
+          rsiSignal: combinedSignal.rsiSignal,
+          combinedSignal: combinedSignal.combinedSignal,
+          confidence: combinedSignal.confidence,
+          minConfidence: this.config.minConfidence
+        });
+        
         if (combinedSignal.confidence >= this.config.minConfidence) {
           signal = {
             timestamp: Date.now(),
@@ -116,6 +125,9 @@ export class TradingAlgorithm {
             },
             reason: this.generateReason(combinedSignal)
           };
+          console.log(`[${market}] 신호 생성됨:`, signal.signal, signal.reason);
+        } else {
+          console.log(`[${market}] 신뢰도 부족: ${combinedSignal.confidence} < ${this.config.minConfidence}`);
         }
         break;
 

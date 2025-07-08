@@ -159,14 +159,27 @@ export class TradingIndicators {
     const shortCrossedAbove = previousShort <= previousLong && currentShort > currentLong;
     const shortCrossedBelow = previousShort >= previousLong && currentShort < currentLong;
     
+    // 추가 조건: 단기 이동평균이 장기 이동평균보다 높고, 가격이 단기 이동평균 위에 있을 때
+    const shortAboveLong = currentShort > currentLong;
+    const priceAboveShort = prices[prices.length - 1] > currentShort;
+    const priceBelowShort = prices[prices.length - 1] < currentShort;
+    
     // 신호 강도 계산 (이동평균 간 거리)
     const distance = Math.abs(currentShort - currentLong) / currentLong;
     const strength = Math.min(distance * 10, 1); // 0-1 범위로 정규화
     
     if (shortCrossedAbove) {
-      return { value: currentShort, signal: 'buy', strength };
+      return { value: currentShort, signal: 'buy', strength: Math.max(strength, 0.3) };
     } else if (shortCrossedBelow) {
-      return { value: currentShort, signal: 'sell', strength };
+      return { value: currentShort, signal: 'sell', strength: Math.max(strength, 0.3) };
+    }
+    // 추가 매수 조건: 단기 이동평균이 장기 이동평균 위에 있고, 가격이 단기 이동평균 위에 있을 때
+    else if (shortAboveLong && priceAboveShort) {
+      return { value: currentShort, signal: 'buy', strength: 0.2 };
+    }
+    // 추가 매도 조건: 단기 이동평균이 장기 이동평균 아래에 있고, 가격이 단기 이동평균 아래에 있을 때
+    else if (!shortAboveLong && priceBelowShort) {
+      return { value: currentShort, signal: 'sell', strength: 0.2 };
     }
     
     return { value: currentShort, signal: 'hold', strength: 0 };
@@ -188,12 +201,13 @@ export class TradingIndicators {
     let strength = 0;
     let signal: 'buy' | 'sell' | 'hold' = 'hold';
     
-    if (currentRSI <= 30) {
+    // RSI 조건을 더 완화 (30→35, 70→65)
+    if (currentRSI <= 35) {
       signal = 'buy';
-      strength = (30 - currentRSI) / 30; // 30 이하일수록 강한 매수 신호
-    } else if (currentRSI >= 70) {
+      strength = (35 - currentRSI) / 35; // 35 이하일수록 강한 매수 신호
+    } else if (currentRSI >= 65) {
       signal = 'sell';
-      strength = (currentRSI - 70) / 30; // 70 이상일수록 강한 매도 신호
+      strength = (currentRSI - 65) / 35; // 65 이상일수록 강한 매도 신호
     }
     
     return { value: currentRSI, signal, strength };

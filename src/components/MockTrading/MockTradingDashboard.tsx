@@ -42,6 +42,7 @@ import { styled } from '@mui/material/styles';
 import { mockTradingService, MockAccount, MockPosition, MockOrder, MockTrade, MockTradingStats } from '../../services/mockTradingService';
 import { upbitApi } from '../../services/upbit';
 import { upbitWebSocket, UpbitTicker } from '../../services/upbitWebSocket';
+import { getUpbitSettings, onSettingsChange } from '../../utils/upbitSettings';
 import Toast from '../Toast/Toast';
 import AlgorithmTabs from './AlgorithmTabs';
 
@@ -109,11 +110,54 @@ const MockTradingDashboard: React.FC<MockTradingDashboardProps> = ({ refreshKey 
   const [activeTab, setActiveTab] = useState(0);
   const [autoTradingRefreshKey, setAutoTradingRefreshKey] = useState(0);
   const [autoTradingInterval, setAutoTradingInterval] = useState<NodeJS.Timeout | null>(null);
+  const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected' | 'connecting'>('disconnected');
+  const [upbitSettings, setUpbitSettings] = useState<{ useSocket: boolean; apiInterval: number }>({ useSocket: true, apiInterval: 5000 });
 
   // 데이터 로드
   useEffect(() => {
     loadData();
   }, [refreshKey]);
+
+  // 업비트 설정 로드
+  useEffect(() => {
+    const loadSettings = async () => {
+      const settings = await getUpbitSettings();
+      setUpbitSettings(settings);
+    };
+    loadSettings();
+  }, []);
+
+  // 업비트 설정 변경 감지
+  useEffect(() => {
+    const removeListener = onSettingsChange((newSettings) => {
+      console.log('업비트 설정 변경 감지:', newSettings);
+      
+      if (!newSettings.useSocket) {
+        // WebSocket 비활성화
+        setConnectionStatus('disconnected');
+        upbitWebSocket.disconnect();
+      } else {
+        // WebSocket 재연결
+        setConnectionStatus('connecting');
+        upbitWebSocket.connect();
+        
+        // 구독할 마켓 목록 재구독
+        const autoTradingConfig = mockTradingService.getAutoTradingConfig();
+        const positionMarkets = positions.map(p => p.market);
+        const autoTradingMarkets = autoTradingConfig.enabled ? autoTradingConfig.markets : [];
+        const allMarkets = Array.from(new Set([...positionMarkets, ...autoTradingMarkets]));
+        
+        if (allMarkets.length > 0) {
+          setTimeout(() => {
+            console.log('설정 변경으로 마켓 재구독:', allMarkets);
+            upbitWebSocket.subscribeToMarkets(allMarkets);
+          }, 1000);
+        }
+      }
+    });
+
+    return removeListener;
+  }, [positions]);
 
   // WebSocket 연결 및 가격 업데이트
   useEffect(() => {
@@ -124,21 +168,60 @@ const MockTradingDashboard: React.FC<MockTradingDashboardProps> = ({ refreshKey 
       }));
     };
 
-    upbitWebSocket.onTickerUpdate = handleTickerUpdate;
-    upbitWebSocket.connect();
+    const initializeWebSocket = async () => {
+      // 업비트 설정 확인
+      const upbitSettings = await getUpbitSettings();
+      
+      if (upbitSettings.useSocket) {
+        // WebSocket 이벤트 핸들러 설정
+        upbitWebSocket.onTickerUpdate = handleTickerUpdate;
+        upbitWebSocket.onConnect = () => {
+          console.log('모의거래 WebSocket 연결됨');
+          setConnectionStatus('connected');
+        };
+        upbitWebSocket.onDisconnect = () => {
+          console.log('모의거래 WebSocket 연결 끊김');
+          setConnectionStatus('disconnected');
+        };
+        upbitWebSocket.onError = () => {
+          console.log('모의거래 WebSocket 오류');
+          setConnectionStatus('disconnected');
+        };
 
-    // 보유 포지션의 마켓들 구독
-    if (positions.length > 0) {
-      const markets = positions.map(p => p.market);
-      setTimeout(() => {
-        upbitWebSocket.subscribeToMarkets(markets);
-      }, 1000);
-    }
+        // WebSocket 연결
+        upbitWebSocket.connect();
+        setConnectionStatus('connecting');
+
+        // 구독할 마켓 목록 생성
+        const autoTradingConfig = mockTradingService.getAutoTradingConfig();
+        const positionMarkets = positions.map(p => p.market);
+        const autoTradingMarkets = autoTradingConfig.enabled ? autoTradingConfig.markets : [];
+        
+        // 중복 제거하여 모든 마켓 구독
+        const allMarkets = Array.from(new Set([...positionMarkets, ...autoTradingMarkets]));
+        
+        if (allMarkets.length > 0) {
+          setTimeout(() => {
+            console.log('모의거래 마켓 구독:', allMarkets);
+            upbitWebSocket.subscribeToMarkets(allMarkets);
+          }, 1000);
+        }
+      } else {
+        // WebSocket 비활성화 시 연결 상태를 'disconnected'로 설정
+        setConnectionStatus('disconnected');
+        console.log('업비트 설정에 따라 WebSocket 비활성화됨');
+      }
+    };
+
+    initializeWebSocket();
 
     return () => {
       upbitWebSocket.onTickerUpdate = undefined;
+      upbitWebSocket.onConnect = undefined;
+      upbitWebSocket.onDisconnect = undefined;
+      upbitWebSocket.onError = undefined;
     };
-  }, [positions]);
+  }, [positions]); // positions가 변경될 때마다 재구독
 
   // 포지션 가치 업데이트
   useEffect(() => {
@@ -300,6 +383,26 @@ const MockTradingDashboard: React.FC<MockTradingDashboardProps> = ({ refreshKey 
       setAutoTradingInterval(null);
     }
     
+    const updateWebSocket = async () => {
+      // 업비트 설정 확인
+      const upbitSettings = await getUpbitSettings();
+      
+      if (upbitSettings.useSocket) {
+        // WebSocket 구독 업데이트
+        const autoTradingConfig = mockTradingService.getAutoTradingConfig();
+        const positionMarkets = positions.map(p => p.market);
+        const autoTradingMarkets = autoTradingConfig.enabled ? autoTradingConfig.markets : [];
+        const allMarkets = Array.from(new Set([...positionMarkets, ...autoTradingMarkets]));
+        
+        if (allMarkets.length > 0) {
+          console.log('자동거래 설정 변경으로 마켓 재구독:', allMarkets);
+          upbitWebSocket.subscribeToMarkets(allMarkets);
+        }
+      }
+    };
+    
+    updateWebSocket();
+    
     if (config.enabled) {
       const interval = setInterval(async () => {
         try {
@@ -310,7 +413,7 @@ const MockTradingDashboard: React.FC<MockTradingDashboardProps> = ({ refreshKey 
           console.error('자동 거래 실행 오류:', error);
         }
       }, 30000);
-      
+
       setAutoTradingInterval(interval);
     }
   };
@@ -391,6 +494,23 @@ const MockTradingDashboard: React.FC<MockTradingDashboardProps> = ({ refreshKey 
               모의투자 계정
             </Typography>
             <Box display="flex" gap={1} alignItems="center">
+              {/* WebSocket 연결 상태 */}
+              <Chip
+                label={`실시간: ${(() => {
+                  if (!upbitSettings.useSocket) {
+                    return '설정 비활성화';
+                  }
+                  return connectionStatus === 'connected' ? '연결됨' : connectionStatus === 'connecting' ? '연결 중' : '연결 끊김';
+                })()}`}
+                color={(() => {
+                  if (!upbitSettings.useSocket) {
+                    return 'default';
+                  }
+                  return connectionStatus === 'connected' ? 'success' : connectionStatus === 'connecting' ? 'warning' : 'error';
+                })()}
+                size="small"
+                variant="outlined"
+              />
               {mockTradingService.getAutoTradingConfig().enabled && (
                 <Chip
                   icon={<AutoTradingIcon />}

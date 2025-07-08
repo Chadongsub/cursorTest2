@@ -42,7 +42,7 @@ const StochasticPage: React.FC = () => {
     bollingerStdDev: 2,
     stochasticKPeriod: 14,
     stochasticDPeriod: 3,
-    minConfidence: 0.3
+    minConfidence: 0.1
   });
 
   // 알고리즘 초기화
@@ -50,6 +50,54 @@ const StochasticPage: React.FC = () => {
     const newAlgorithm = new TradingAlgorithm(config);
     setAlgorithm(newAlgorithm);
   }, [config]);
+
+  // 마켓 데이터 초기화
+  useEffect(() => {
+    const initWebSocket = async () => {
+      try {
+        // WebSocket 이벤트 핸들러 설정
+        upbitWebSocket.onConnect = () => {
+          console.log('스토캐스틱 페이지 WebSocket 연결됨');
+        };
+        
+        upbitWebSocket.onDisconnect = () => {
+          console.log('스토캐스틱 페이지 WebSocket 연결 끊김');
+        };
+        
+        upbitWebSocket.onError = () => {
+          console.log('스토캐스틱 페이지 WebSocket 오류');
+        };
+
+        // WebSocket 연결
+        upbitWebSocket.connect();
+
+        // 연결 후 기본 마켓들 구독
+        setTimeout(() => {
+          const defaultMarkets = [
+            'KRW-BTC', 'KRW-ETH', 'KRW-XRP', 'KRW-ADA', 'KRW-DOGE', 'KRW-MATIC', 
+            'KRW-DOT', 'KRW-LTC', 'KRW-BCH', 'KRW-LINK', 'KRW-UNI', 'KRW-ATOM',
+            'KRW-SOL', 'KRW-AVAX', 'KRW-TRX', 'KRW-NEAR', 'KRW-ALGO', 'KRW-VET',
+            'KRW-FLOW', 'KRW-AAVE', 'KRW-ICP', 'KRW-FIL', 'KRW-APT', 'KRW-OP',
+            'KRW-ARB', 'KRW-MKR', 'KRW-SNX', 'KRW-COMP', 'KRW-CRV', 'KRW-YFI'
+          ];
+          
+          upbitWebSocket.subscribeToMarkets(defaultMarkets);
+        }, 2000);
+
+      } catch (error) {
+        console.error('WebSocket 초기화 실패:', error);
+      }
+    };
+    
+    initWebSocket();
+
+    // 컴포넌트 언마운트 시 정리
+    return () => {
+      upbitWebSocket.onConnect = undefined;
+      upbitWebSocket.onDisconnect = undefined;
+      upbitWebSocket.onError = undefined;
+    };
+  }, []);
 
   // 실시간 데이터 처리
   useEffect(() => {

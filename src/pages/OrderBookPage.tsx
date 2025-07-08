@@ -97,74 +97,51 @@ const OrderBookPage: React.FC = () => {
 
   // WebSocket 연결
   useEffect(() => {
-    const settings = getUpbitSettings();
-    const { useSocket } = settings;
+    const initializeWebSocket = async () => {
+      const settings = await getUpbitSettings();
+      const { useSocket } = settings;
 
-    if (useSocket && market) {
-      // 초기 연결 상태 설정
-      const currentState = upbitWebSocket.getConnectionState();
-      if (currentState === 'connecting') {
+      if (useSocket && market) {
+        // 초기 연결 상태 설정
         setConnectionStatus('connecting');
-      } else if (currentState === 'connected') {
-        setConnectionStatus('connected');
-        // 이미 연결된 상태라면 해당 마켓 호가 구독
-        upbitWebSocket.subscribeOrderBook([market]);
+        
+        // WebSocket 이벤트 핸들러 설정
+        upbitWebSocket.onOrderBookUpdate = handleOrderBookUpdate;
+        upbitWebSocket.onConnect = () => {
+          setConnectionStatus('connected');
+          console.log('OrderBookPage WebSocket 연결됨');
+        };
+        upbitWebSocket.onDisconnect = () => {
+          setConnectionStatus('disconnected');
+          console.log('OrderBookPage WebSocket 연결 끊김');
+        };
+        upbitWebSocket.onError = () => {
+          setConnectionStatus('disconnected');
+          console.log('OrderBookPage WebSocket 오류');
+        };
+
+        // WebSocket 연결
+        upbitWebSocket.connect();
+        
+        // 호가 데이터 구독
+        setTimeout(() => {
+          upbitWebSocket.subscribeOrderBook([market]);
+        }, 1000);
       } else {
         setConnectionStatus('disconnected');
-        // 연결되지 않은 상태라면 연결 시도
-        upbitWebSocket.connect();
       }
+    };
 
-      // WebSocket 이벤트 핸들러 설정
-      upbitWebSocket.onOrderBookUpdate = handleOrderBookUpdate;
-      upbitWebSocket.onConnect = () => {
-        setConnectionStatus('connected');
-        showToast('실시간 데이터 연결됨', 'success');
-        // 연결 후 해당 마켓 호가 구독
-        if (market) {
-          upbitWebSocket.subscribeOrderBook([market]);
-        }
-      };
-      upbitWebSocket.onDisconnect = () => {
-        setConnectionStatus('disconnected');
-        showToast('실시간 데이터 연결 끊김', 'warning');
-      };
-      upbitWebSocket.onError = () => {
-        setConnectionStatus('disconnected');
-        showToast('실시간 데이터 연결 오류', 'error');
-      };
+    initializeWebSocket();
 
-      // 연결 상태 주기적 확인
-      const connectionCheckInterval = setInterval(() => {
-        const currentState = upbitWebSocket.getConnectionState();
-        if (currentState === 'connected' && connectionStatus !== 'connected') {
-          setConnectionStatus('connected');
-          // 연결 상태가 변경되면 해당 마켓 호가 구독
-          if (market) {
-            upbitWebSocket.subscribeOrderBook([market]);
-          }
-        } else if (currentState === 'connecting' && connectionStatus !== 'connecting') {
-          setConnectionStatus('connecting');
-        } else if (currentState === 'disconnected' && connectionStatus !== 'disconnected') {
-          setConnectionStatus('disconnected');
-        }
-      }, 5000);
-
-      return () => {
-        clearInterval(connectionCheckInterval);
-        // 컴포넌트 언마운트 시 해당 마켓 구독 해제
-        if (market) {
-          upbitWebSocket.unsubscribeOrderBook([market]);
-        }
-        upbitWebSocket.onOrderBookUpdate = undefined;
-        upbitWebSocket.onConnect = undefined;
-        upbitWebSocket.onDisconnect = undefined;
-        upbitWebSocket.onError = undefined;
-      };
-    } else {
-      setConnectionStatus('disconnected');
-    }
-  }, [market, connectionStatus]);
+    return () => {
+      // 컴포넌트 언마운트 시 이벤트 핸들러 제거
+      upbitWebSocket.onOrderBookUpdate = undefined;
+      upbitWebSocket.onConnect = undefined;
+      upbitWebSocket.onDisconnect = undefined;
+      upbitWebSocket.onError = undefined;
+    };
+  }, [market, handleOrderBookUpdate]);
 
   const handleRefresh = async () => {
     if (!market) return;

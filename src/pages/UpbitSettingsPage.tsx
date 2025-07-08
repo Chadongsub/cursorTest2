@@ -7,6 +7,7 @@ import { loadUpbitSettings, saveUpbitSettings } from '../utils/upbitSettings';
 export default function UpbitSettingsPage() {
   const [useSocket, setUseSocket] = useState(true);
   const [apiInterval, setApiInterval] = useState(2000);
+  const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<{
     open: boolean;
     message: string;
@@ -18,10 +19,21 @@ export default function UpbitSettingsPage() {
   });
 
   useEffect(() => {
-    loadUpbitSettings().then((settings) => {
-      setUseSocket(settings.useSocket);
-      setApiInterval(settings.apiInterval);
-    });
+    const loadSettings = async () => {
+      try {
+        setLoading(true);
+        const settings = await loadUpbitSettings();
+        setUseSocket(settings.useSocket);
+        setApiInterval(settings.apiInterval);
+      } catch (error) {
+        console.error('설정 로드 실패:', error);
+        showToast('설정을 불러오는 중 오류가 발생했습니다.', 'error');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadSettings();
   }, []);
 
   const showToast = (message: string, severity: 'success' | 'error' | 'warning' | 'info' = 'info') => {
@@ -36,18 +48,27 @@ export default function UpbitSettingsPage() {
     setToast(prev => ({ ...prev, open: false }));
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     try {
-      saveUpbitSettings({ useSocket, apiInterval });
-      showToast('설정이 저장되었습니다! 페이지를 새로고침합니다.', 'success');
-      // 설정 변경 후 페이지 새로고침
-      setTimeout(() => {
-        window.location.reload();
-      }, 2000); // 2초 후 새로고침
+      setLoading(true);
+      await saveUpbitSettings({ useSocket, apiInterval });
+      showToast('설정이 저장되었습니다!', 'success');
     } catch (error) {
       showToast('설정 저장 중 오류가 발생했습니다.', 'error');
+    } finally {
+      setLoading(false);
     }
   };
+
+  if (loading) {
+    return (
+      <PageLayout>
+        <Paper sx={{ p: 4, maxWidth: 'sm', mx: 'auto' }}>
+          <Typography>설정을 불러오는 중...</Typography>
+        </Paper>
+      </PageLayout>
+    );
+  }
 
   return (
     <PageLayout>
@@ -94,8 +115,13 @@ export default function UpbitSettingsPage() {
             InputProps={{ inputProps: { min: 500, step: 100 } }}
             fullWidth
           />
-          <Button variant="contained" color="primary" onClick={handleSave}>
-            저장
+          <Button 
+            variant="contained" 
+            color="primary" 
+            onClick={handleSave}
+            disabled={loading}
+          >
+            {loading ? '저장 중...' : '저장'}
           </Button>
         </Box>
       </Paper>

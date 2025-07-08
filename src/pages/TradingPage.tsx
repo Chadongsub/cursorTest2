@@ -23,14 +23,22 @@ import TradingSignals from '../components/TradingSignals/TradingSignals';
 import TradingSettings from '../components/TradingSettings/TradingSettings';
 import { TradingAlgorithm, TradingSignal, TradingConfig } from '../services/tradingAlgorithm';
 import { upbitWebSocket } from '../services/upbitWebSocket';
+import { upbitApi } from '../services/upbit';
 
 const TradingPage: React.FC = () => {
   const [algorithm, setAlgorithm] = useState<TradingAlgorithm | null>(null);
   const [signals, setSignals] = useState<TradingSignal[]>([]);
   const [isRunning, setIsRunning] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [markets, setMarkets] = useState<string[]>(['KRW-BTC', 'KRW-ETH', 'KRW-XRP']);
+  const [markets, setMarkets] = useState<string[]>([
+    'KRW-BTC', 'KRW-ETH', 'KRW-XRP', 'KRW-ADA', 'KRW-DOGE', 'KRW-MATIC', 
+    'KRW-DOT', 'KRW-LTC', 'KRW-BCH', 'KRW-LINK', 'KRW-UNI', 'KRW-ATOM',
+    'KRW-SOL', 'KRW-AVAX', 'KRW-TRX', 'KRW-NEAR', 'KRW-ALGO', 'KRW-VET',
+    'KRW-FLOW', 'KRW-AAVE', 'KRW-ICP', 'KRW-FIL', 'KRW-APT', 'KRW-OP',
+    'KRW-ARB', 'KRW-MKR', 'KRW-SNX', 'KRW-COMP', 'KRW-CRV', 'KRW-YFI'
+  ]);
   const [availableMarkets, setAvailableMarkets] = useState<string[]>([]);
+  const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected' | 'connecting'>('disconnected');
   const [config, setConfig] = useState<TradingConfig>({
     algorithmType: 'ma_rsi',
     shortPeriod: 5,
@@ -42,7 +50,7 @@ const TradingPage: React.FC = () => {
     bollingerStdDev: 2,
     stochasticKPeriod: 14,
     stochasticDPeriod: 3,
-    minConfidence: 0.3
+    minConfidence: 0.1
   });
 
   // 알고리즘 초기화
@@ -51,25 +59,68 @@ const TradingPage: React.FC = () => {
     setAlgorithm(newAlgorithm);
   }, [config]);
 
-  // 마켓 데이터 초기화
+  // WebSocket 연결 및 마켓 데이터 초기화
   useEffect(() => {
-    const initMarkets = async () => {
+    const initWebSocket = async () => {
       try {
-        // 업비트에서 사용 가능한 모든 KRW 마켓 가져오기
-        const marketList = [
+        // WebSocket 이벤트 핸들러 설정
+        upbitWebSocket.onConnect = () => {
+          setConnectionStatus('connected');
+          console.log('트레이딩 페이지 WebSocket 연결됨');
+        };
+        
+        upbitWebSocket.onDisconnect = () => {
+          setConnectionStatus('disconnected');
+          console.log('트레이딩 페이지 WebSocket 연결 끊김');
+        };
+        
+        upbitWebSocket.onError = () => {
+          setConnectionStatus('disconnected');
+          console.log('트레이딩 페이지 WebSocket 오류');
+        };
+
+        // WebSocket 연결
+        setConnectionStatus('connecting');
+        upbitWebSocket.connect();
+
+        // 연결 후 기본 마켓들 구독하여 마켓 정보 수집
+        setTimeout(() => {
+          const defaultMarkets = [
+            'KRW-BTC', 'KRW-ETH', 'KRW-XRP', 'KRW-ADA', 'KRW-DOGE', 'KRW-MATIC', 
+            'KRW-DOT', 'KRW-LTC', 'KRW-BCH', 'KRW-LINK', 'KRW-UNI', 'KRW-ATOM',
+            'KRW-SOL', 'KRW-AVAX', 'KRW-TRX', 'KRW-NEAR', 'KRW-ALGO', 'KRW-VET',
+            'KRW-FLOW', 'KRW-AAVE', 'KRW-ICP', 'KRW-FIL', 'KRW-APT', 'KRW-OP',
+            'KRW-ARB', 'KRW-MKR', 'KRW-SNX', 'KRW-COMP', 'KRW-CRV', 'KRW-YFI'
+          ];
+          
+          upbitWebSocket.subscribeToMarkets(defaultMarkets);
+          setAvailableMarkets(defaultMarkets);
+        }, 2000);
+
+      } catch (error) {
+        console.error('WebSocket 초기화 실패:', error);
+        setConnectionStatus('disconnected');
+        
+        // WebSocket 연결 실패 시 기본 마켓 리스트 사용
+        const fallbackMarkets = [
           'KRW-BTC', 'KRW-ETH', 'KRW-XRP', 'KRW-ADA', 'KRW-DOGE', 'KRW-MATIC', 
           'KRW-DOT', 'KRW-LTC', 'KRW-BCH', 'KRW-LINK', 'KRW-UNI', 'KRW-ATOM',
           'KRW-SOL', 'KRW-AVAX', 'KRW-TRX', 'KRW-NEAR', 'KRW-ALGO', 'KRW-VET',
           'KRW-FLOW', 'KRW-AAVE', 'KRW-ICP', 'KRW-FIL', 'KRW-APT', 'KRW-OP',
           'KRW-ARB', 'KRW-MKR', 'KRW-SNX', 'KRW-COMP', 'KRW-CRV', 'KRW-YFI'
         ];
-        setAvailableMarkets(marketList);
-      } catch (error) {
-        console.error('마켓 초기화 실패:', error);
+        setAvailableMarkets(fallbackMarkets);
       }
     };
     
-    initMarkets();
+    initWebSocket();
+
+    // 컴포넌트 언마운트 시 정리
+    return () => {
+      upbitWebSocket.onConnect = undefined;
+      upbitWebSocket.onDisconnect = undefined;
+      upbitWebSocket.onError = undefined;
+    };
   }, []);
 
   // 실시간 데이터 처리
@@ -172,6 +223,14 @@ const TradingPage: React.FC = () => {
                     variant="outlined"
                   />
                   {isRunning && <CircularProgress size={20} />}
+                  
+                  {/* WebSocket 연결 상태 */}
+                  <Chip
+                    label={`WebSocket: ${connectionStatus === 'connected' ? '연결됨' : connectionStatus === 'connecting' ? '연결 중' : '연결 끊김'}`}
+                    color={connectionStatus === 'connected' ? 'success' : connectionStatus === 'connecting' ? 'warning' : 'error'}
+                    variant="outlined"
+                    size="small"
+                  />
                 </Box>
                 
                 <Box display="flex" gap={1}>
@@ -180,7 +239,7 @@ const TradingPage: React.FC = () => {
                     color="success"
                     startIcon={<PlayArrow />}
                     onClick={handleStart}
-                    disabled={isRunning}
+                    disabled={isRunning || connectionStatus !== 'connected'}
                   >
                     시작
                   </Button>
@@ -197,6 +256,7 @@ const TradingPage: React.FC = () => {
                     variant="outlined"
                     startIcon={<Refresh />}
                     onClick={handleRefresh}
+                    disabled={connectionStatus !== 'connected'}
                   >
                     새로고침
                   </Button>
@@ -239,12 +299,36 @@ const TradingPage: React.FC = () => {
                     모니터링 마켓
                   </Typography>
                 </Box>
+                <Box textAlign="center" flex={1}>
+                  <Typography variant="h4" color="info.main" fontWeight="bold">
+                    {availableMarkets.length}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    사용 가능 마켓
+                  </Typography>
+                </Box>
               </Box>
             </CardContent>
           </Card>
 
           {/* 알림 */}
-          {!isRunning && (
+          {connectionStatus === 'disconnected' && (
+            <Alert severity="error" sx={{ mb: 3 }}>
+              <Typography variant="body2">
+                WebSocket 연결이 끊어졌습니다. 실시간 데이터를 받을 수 없습니다.
+              </Typography>
+            </Alert>
+          )}
+
+          {connectionStatus === 'connecting' && (
+            <Alert severity="info" sx={{ mb: 3 }}>
+              <Typography variant="body2">
+                WebSocket 연결 중입니다. 잠시만 기다려주세요.
+              </Typography>
+            </Alert>
+          )}
+
+          {!isRunning && connectionStatus === 'connected' && (
             <Alert severity="warning" sx={{ mb: 3 }}>
               <Typography variant="body2">
                 알고리즘이 중지되어 있습니다. 시작 버튼을 눌러 실시간 신호 생성을 시작하세요.
@@ -252,7 +336,7 @@ const TradingPage: React.FC = () => {
             </Alert>
           )}
 
-          {signals.length === 0 && isRunning && (
+          {signals.length === 0 && isRunning && connectionStatus === 'connected' && (
             <Alert severity="info" sx={{ mb: 3 }}>
               <Typography variant="body2">
                 아직 신호가 생성되지 않았습니다. 충분한 가격 데이터가 수집되면 신호가 표시됩니다.
